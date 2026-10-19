@@ -28,13 +28,13 @@ export async function scanTab(tabId) {
   return { items: await prepareMetadata([...unique.values()]), frames: frames.filter(f => f.result).length, truncated };
 }
 
-async function pageData(tabId, item) {
+async function pageData(tabId, item, refresh) {
   const errors = [];
   for (const origin of item.origins) {
     try {
       const [response] = await chrome.scripting.executeScript({
         target: { tabId, documentIds: [origin.documentId] },
-        func: id => globalThis.__imageDown?.read(id), args: [origin.id],
+        func: (id, refresh) => globalThis.__imageDown?.read(id, { refresh }), args: [origin.id, refresh],
       });
       if (response?.result?.dataUrl) return response.result;
       errors.push(response?.result?.error || '页面已改变');
@@ -43,9 +43,9 @@ async function pageData(tabId, item) {
   throw new Error(errors.join('；'));
 }
 
-async function extensionBlob(url) {
+async function extensionBlob(url, refresh) {
   if (!/^https?:/.test(url)) throw new Error('此资源只能从原页面读取');
-  const response = await fetch(url, { cache: 'force-cache', credentials: 'include', signal: AbortSignal.timeout(12000) });
+  const response = await fetch(url, { cache: refresh ? 'reload' : 'force-cache', credentials: 'include', signal: AbortSignal.timeout(12000) });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const mime = response.headers.get('content-type')?.split(';')[0] || '';
   if (!mime.startsWith('image/')) throw new Error('服务器没有返回图片');
@@ -65,16 +65,16 @@ async function extensionBlob(url) {
   return new Blob(chunks, { type: mime });
 }
 
-export async function readImage(tabId, item) {
+export async function readImage(tabId, item, { refresh = false } = {}) {
   let pageError;
   try {
-    const result = await pageData(tabId, item);
+    const result = await pageData(tabId, item, refresh);
     // Data URLs have already been bounded in the owning document.
     const blob = await (await fetch(result.dataUrl)).blob();
     if (!blob.type.startsWith('image/')) throw new Error('页面返回的数据不是图片');
     return { blob, method: result.method };
   } catch (error) { pageError = error; }
-  try { return { blob: await extensionBlob(item.url), method: 'extension-fetch' }; }
+  try { return { blob: await extensionBlob(item.url, refresh), method: 'extension-fetch' }; }
   catch (error) { throw new Error(`页面：${pageError.message}；扩展：${error.message}`); }
 }
 

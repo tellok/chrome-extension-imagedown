@@ -49,6 +49,8 @@ THRESHOLD_IMAGES = {
 }
 DATA = 'data:image/png;base64,' + base64.b64encode(SMALL).decode()
 COUNTS = {}
+RETRY_READY = set()
+RETRY_PATHS = []
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -59,6 +61,27 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         origin = f'http://127.0.0.1:{self.server.server_port}'
         other = f'http://127.0.0.1:{self.server.other_port}'
+        if path == '/retry-fixture':
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(b'''<!doctype html><title>Preview retry fixture</title>
+            <link rel="icon" href="data:,">
+            <img src="/retry-one.png?signature=demo%2Bvalue">
+            <img src="/retry-batch-a.png"><img src="/retry-batch-b.png">
+            <img src="/retry-never.png"><img src="/retry-ignored.png">''')
+            return
+        if path.startswith('/retry-'):
+            RETRY_PATHS.append(self.path)
+            COUNTS[path] = COUNTS.get(path, 0) + 1
+            ok = path in RETRY_READY
+            self.send_response(200 if ok else 403)
+            self.send_header('Content-Type', 'image/png' if ok else 'text/plain')
+            # A retry must escape the cached failure without changing signed URLs.
+            self.send_header('Cache-Control', 'public, max-age=3600')
+            self.end_headers()
+            self.wfile.write(PNG if ok else b'Temporarily unavailable')
+            return
         if path in ('/fixture', '/other-page'):
             html = f'''<!doctype html><title>ImageDown 测试图片集</title>
             <style>body{{font-family:system-ui}}img,canvas{{max-width:200px}} .bg{{height:80px;background:url('/background.png')}}
@@ -111,6 +134,84 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Cache-Control', 'no-store' if path in ('/once.png', '/cross.png', '/denied.png') else 'public, max-age=3600')
         self.end_headers()
         self.wfile.write(THRESHOLD_IMAGES.get(path, SMALL if path in ('/small.png', '/pseudo.png') else PNG))
+
+
+def test_preview_retries(context, worker, extension_id, origin, output):
+    source = context.new_page()
+    source.goto(origin + '/retry-fixture')
+    source.wait_for_load_state('networkidle')
+    tab_id = worker.evaluate('''async () => (await chrome.tabs.query({})).find(t => t.url?.endsWith('/retry-fixture')).id''')
+    panel = context.new_page()
+    errors = []
+    panel.on('pageerror', lambda error: errors.append(str(error)))
+    panel.goto(f'chrome-extension://{extension_id}/panel.html?tab={tab_id}')
+    expect(panel.locator('#frame-count')).to_have_text('1 个框架')
+    expect(panel.locator('.retry-preview:visible')).to_have_count(5)
+    expect(panel.locator('#retry-failed')).to_have_text('↻ 重试所有失败图片 (5)')
+
+    def card(name):
+        return panel.locator('.card').filter(has=panel.locator('.image-url', has_text=name))
+
+    single = card('retry-one.png')
+    single.locator('input').check()
+    expect(panel.locator('#selection-count')).to_have_text('已选择 1 张')
+    before = COUNTS.get('/retry-one.png', 0)
+    RETRY_READY.add('/retry-one.png')
+    single.locator('.retry-preview').click()
+    expect(single.locator('.retry-preview')).to_be_hidden(timeout=20000)
+    expect(single.locator('img')).not_to_have_class('failed')
+    expect(single.locator('.dimensions')).to_have_text('640 × 420')
+    expect(single.locator('.image-size')).to_have_text(f'{len(PNG) / 1024:.1f} KiB')
+    expect(single.locator('input')).to_be_checked()
+    assert COUNTS['/retry-one.png'] > before
+    assert all(path == '/retry-one.png?signature=demo%2Bvalue' for path in RETRY_PATHS if path.startswith('/retry-one.png'))
+    expect(panel.locator('#retry-failed')).to_have_text('↻ 重试所有失败图片 (4)')
+
+    never = card('retry-never.png')
+    never.locator('.retry-preview').click()
+    expect(never.locator('.retry-preview')).to_be_enabled(timeout=20000)
+    expect(never.locator('.retry-preview')).to_have_attribute('title', '页面：HTTP 403；扩展：HTTP 403')
+    expect(never.locator('img')).to_have_class('failed')
+
+    card('retry-ignored.png').locator('.ignore-image').click()
+    expect(card('retry-ignored.png')).to_have_count(0)
+    expect(panel.locator('#retry-failed')).to_have_text('↻ 重试所有失败图片 (3)')
+    ignored_requests = COUNTS.get('/retry-ignored.png', 0)
+    RETRY_READY.update(['/retry-batch-a.png', '/retry-batch-b.png', '/retry-ignored.png'])
+    panel.locator('#query').fill('retry-batch-a.png')
+    expect(panel.locator('.card')).to_have_count(1)
+    expect(panel.locator('.image-url')).to_contain_text('retry-batch-a.png')
+    before_downloads = panel.evaluate('async () => (await chrome.downloads.search({})).length')
+    panel.locator('#retry-failed').click()
+    expect(panel.locator('#retry-summary')).to_have_text('成功 2 · 失败 1 · 共 3 张', timeout=30000)
+    expect(panel.locator('#retry-failed')).to_have_text('↻ 重试所有失败图片 (1)')
+    expect(panel.locator('#query')).to_have_value('retry-batch-a.png')
+    expect(panel.locator('#selection-count')).to_contain_text('已选择 1 张')
+    expect(panel.locator('#min-width')).to_have_value('50')
+    expect(panel.locator('#min-height')).to_have_value('50')
+    expect(panel.locator('#min-size')).to_have_value('2')
+    assert COUNTS.get('/retry-ignored.png', 0) == ignored_requests
+    assert panel.evaluate('async () => (await chrome.downloads.search({})).length') == before_downloads
+
+    # Successful retries survive ordinary rerenders without repeating HTTP requests.
+    counts = {name: COUNTS.get(name, 0) for name in ('/retry-one.png', '/retry-batch-a.png', '/retry-batch-b.png')}
+    panel.locator('#query').fill('')
+    expect(panel.locator('.card')).to_have_count(4)
+    for name in ('retry-one.png', 'retry-batch-a.png', 'retry-batch-b.png'):
+        expect(card(name).locator('.retry-preview')).to_be_hidden()
+        expect(card(name).locator('img')).not_to_have_class('failed')
+    panel.locator('#layout').click()
+    panel.locator('#layout').click()
+    panel.wait_for_load_state('networkidle')
+    assert all(COUNTS.get(name, 0) == count for name, count in counts.items())
+    expect(panel.locator('#selection-count')).to_have_text('已选择 1 张')
+    panel.set_viewport_size({'width': 420, 'height': 1100})
+    panel.evaluate('scrollTo(0, 0)')
+    panel.screenshot(path=str(output / 'preview-retries.png'))
+    assert panel.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'retry controls overflow'
+    assert not errors, errors
+    panel.close()
+    source.close()
 
 
 def main():
@@ -380,6 +481,7 @@ def main():
             panel.screenshot(path=str(OUTPUT / 'filters-and-ignore.png'))
             assert panel.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'filter panel overflows'
             assert not errors, errors
+            test_preview_retries(context, worker, extension_id, origin, OUTPUT)
 
             # A navigated frame must never service an obsolete read by recycled frame ID.
             navigation_items = panel.evaluate('''async tabId => (await (await import('./api.js')).scanTab(tabId)).items''', tab_id)
