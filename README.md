@@ -4,6 +4,12 @@
 
 核心原则：**发现图片与读取图片分开。页面已经展示的图片，不应因为扩展再次请求失败而从列表中消失。**
 
+## 界面
+
+0.3.0 使用受 Notion 启发的文档与图库界面：纸白底色、黑灰层级、细边框、紧凑工具栏、低圆角图片卡片和黑色下载按钮。侧边栏与独立标签页共用响应式布局；图标使用本地 SVG，图片本身保留原始颜色。
+
+标题区和空状态包含两张为本项目独立生成的黑白线描插图，扩展运行时完全从本地加载，没有远程字体、设计服务或图片服务依赖。素材、生成方式及完整提示词见 [插图说明](docs/illustrations.md)。这是 ImageDown 自身的界面设计，不隶属于 Notion。
+
 ## 安装
 
 需要 Chrome 116 或更新版本。
@@ -119,7 +125,7 @@
 ```sh
 npm run check       # manifest 引用和 JS 语法
 npm test            # 筛选、类型识别与文件名安全
-npm run package     # dist/imagedown-0.2.1.zip，manifest 位于 ZIP 根目录
+npm run package     # dist/imagedown-0.3.0.zip，manifest 位于 ZIP 根目录
 ```
 
 真实 Chromium 集成测试：
