@@ -1,15 +1,18 @@
 import { filename } from './lib.js';
 import { prepareMetadata } from './metadata.js';
 
-export async function scanTab(tabId) {
-  await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ['collector.js'] });
+export async function scanTab(tabId, xpath = '', excludedSelectors = '') {
+  // DevTools XPath is relative to the top document. Never leak unscoped iframe images.
+  const target = { tabId, allFrames: !xpath };
+  await chrome.scripting.executeScript({ target, files: ['collector.js'] });
   const frames = await chrome.scripting.executeScript({
-    target: { tabId, allFrames: true }, func: () => globalThis.__imageDown?.scan(),
+    target, func: (expression, selectors) => globalThis.__imageTaken?.scan(expression, selectors), args: [xpath, excludedSelectors],
   });
   const unique = new Map();
   let truncated = false;
   for (const { frameId, documentId, result } of frames) {
     if (!result) continue;
+    if (result.error) throw new Error(result.error);
     truncated ||= result.truncated;
     for (const item of result.items) {
       const origin = { id: item.id, documentId, frameId };
@@ -25,7 +28,7 @@ export async function scanTab(tabId) {
       } else unique.set(key, { ...item, key, origins: [origin], order: unique.size });
     }
   }
-  return { items: await prepareMetadata([...unique.values()]), frames: frames.filter(f => f.result).length, truncated };
+  return { items: await prepareMetadata([...unique.values()]), frames: frames.filter(f => f.result).length, matchedRoots: frames.reduce((sum, f) => sum + (f.result?.matchedRoots || 0), 0), truncated };
 }
 
 async function pageData(tabId, item, refresh) {
@@ -34,7 +37,7 @@ async function pageData(tabId, item, refresh) {
     try {
       const [response] = await chrome.scripting.executeScript({
         target: { tabId, documentIds: [origin.documentId] },
-        func: (id, refresh) => globalThis.__imageDown?.read(id, { refresh }), args: [origin.id, refresh],
+        func: (id, refresh) => globalThis.__imageTaken?.read(id, { refresh }), args: [origin.id, refresh],
       });
       if (response?.result?.dataUrl) return response.result;
       errors.push(response?.result?.error || '页面已改变');

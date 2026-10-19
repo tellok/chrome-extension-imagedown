@@ -14,7 +14,7 @@ export function filename(item, index, mime, format = 'original') {
     .replace(/^\.+|[. ]+$/g, '').slice(0, 100);
   if (!name || item.kind === 'canvas' || /^(data:|blob:)/.test(item.url)) name = 'image';
   // Always prefix: handles Windows reserved names, collisions and page-controlled paths.
-  return `ImageDown/${String(index + 1).padStart(3, '0')}-${name}.${ext === 'unknown' ? 'img' : ext}`;
+  return `ImageTaken/${String(index + 1).padStart(3, '0')}-${name}.${ext === 'unknown' ? 'img' : ext}`;
 }
 
 export function filterImages(items, filters, sizeOf = item => ({ bytes: Number.isFinite(item.bytes) ? item.bytes : null })) {

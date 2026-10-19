@@ -1,6 +1,6 @@
 // Runs only on demand, in the extension's isolated world, once in each frame.
 (() => {
-  if (globalThis.__imageDown) return;
+  if (globalThis.__imageTaken) return;
   const MAX_BYTES = 20 * 1024 * 1024;
   const MAX_PIXELS = 24_000_000;
   const MAX_ITEMS = 4000;
@@ -55,7 +55,29 @@
     return data;
   }
 
-  function scan() {
+  function scan(xpath = '', excludedSelectors = '') {
+    const selectors = excludedSelectors.split('\n').map(value => value.trim()).filter(Boolean);
+    try { for (const selector of selectors) document.querySelector(selector); }
+    catch { return { error: 'CSS 排除选择器无效：请检查每行的选择器语法' }; }
+    const excluded = element => selectors.some(selector => element.matches(selector) || element.closest(selector));
+    let roots = [document];
+    if (xpath) {
+      try {
+        const result = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        roots = [];
+        for (let i = 0; i < result.snapshotLength; i++) {
+          const node = result.snapshotItem(i);
+          if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_NODE) {
+            return { error: 'XPath 必须匹配 DOM 元素或文档节点' };
+          }
+          roots.push(node);
+        }
+      } catch { return { error: 'XPath 无效：请粘贴 DevTools 复制的 XPath（不是 $x(...) 命令）' }; }
+    }
+    const matchedRoots = roots.length;
+    // Collapse overlapping matches so nested SVG/Canvas nodes are collected once.
+    roots = roots.filter((node, i) => !roots.some((parent, j) => j !== i && parent.contains(node)));
+    const visited = new Set();
     revision++;
     records = new Map();
     const byURL = new Map();
@@ -94,7 +116,12 @@
       return record;
     };
     const walk = (root) => {
-      for (const el of root.querySelectorAll('*')) {
+      for (const el of [...(root.nodeType === Node.ELEMENT_NODE ? [root] : []), ...root.querySelectorAll('*')]) {
+        if (visited.has(el)) continue;
+        visited.add(el);
+        if (excluded(el)) continue;
+        // A picture's sources belong to its img; excluded images must not return via srcset.
+        if (el.matches('picture > source') && [...el.parentElement.children].some(child => child instanceof HTMLImageElement && excluded(child))) continue;
         if (el instanceof HTMLImageElement) {
           const current = el.currentSrc || el.src;
           const loaded = el.complete && el.naturalWidth > 0;
@@ -125,11 +152,13 @@
             if (previewBytes < 6 * 1024 * 1024) { preview = pixels(el, true); previewBytes += preview.length; }
           } catch { /* Still show unreadable canvases. */ }
           // Fragment gives each canvas its own stable URL within this scan.
-          add(`${location.href.split('#')[0]}#__imagedown_canvas_${byURL.size}`, 'canvas', el,
+          add(`${location.href.split('#')[0]}#__imagetaken_canvas_${byURL.size}`, 'canvas', el,
             { loaded: true, width: el.width, height: el.height, kind: 'canvas', snapshot, preview });
         }
         if (el instanceof SVGSVGElement && !el.parentElement?.closest('svg')) {
           const clone = el.cloneNode(true);
+          const originalChildren = [...el.querySelectorAll('*')];
+          [...clone.querySelectorAll('*')].forEach((child, i) => { if (excluded(originalChildren[i])) child.remove(); });
           clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
           const data = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(clone))}`;
           add(data, 'svg', el, { loaded: true, width: el.width.baseVal.value, height: el.height.baseVal.value });
@@ -151,10 +180,10 @@
         if (el.shadowRoot) walk(el.shadowRoot);
       }
     };
-    walk(document);
+    for (const root of roots) walk(root);
     for (const entry of performance.getEntriesByType('resource')) {
       if (entry.initiatorType === 'img' || /\.(avif|png|jpe?g|gif|webp|svg|bmp|ico)(?:[?#]|$)/i.test(entry.name)) {
-        const record = add(entry.name, 'resource');
+        const record = xpath || selectors.length ? byURL.get(entry.name) : add(entry.name, 'resource');
         const bodySize = entry.decodedBodySize || entry.encodedBodySize;
         if (record && bodySize > 0 && !(entry.responseStatus >= 400)) {
           record.bytes = bodySize;
@@ -167,7 +196,7 @@
     history.push(records);
     if (history.length > 3) history.shift();
     return {
-      title: document.title, url: location.href, truncated,
+      title: document.title, url: location.href, truncated, matchedRoots,
       items: [...records.values()].map(({ element, snapshot, ...item }) => item),
     };
   }
@@ -234,5 +263,5 @@
     } catch (error) { errors.push(error.message); }
     return { error: errors.join('；') || '页面无法读取原图数据' };
   }
-  globalThis.__imageDown = { scan, read };
+  globalThis.__imageTaken = { scan, read };
 })();

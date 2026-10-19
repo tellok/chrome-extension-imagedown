@@ -11,11 +11,11 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 300px; }
-button, input, select { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button, select, summary, input[type=checkbox] { cursor: pointer; }
 button { border: 0; background: none; color: inherit; }
 button:disabled { opacity: .4; cursor: default; }
-button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible {
   outline: 2px solid #5b8fc4;
   outline-offset: 3px;
 }
@@ -33,7 +33,7 @@ header {
   border-bottom: 1px solid var(--border);
 }
 .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.logo { width: 24px; height: 24px; border-radius: 4px; filter: grayscale(1); }
+.logo { width: 24px; height: 24px; border-radius: 4px; object-fit: contain; }
 h1 { margin: 0; font-size: 12px; font-weight: 550; letter-spacing: -.2px; }
 .breadcrumb-separator { color: #c7c6c2; margin: 0 2px; }
 .breadcrumb-page { color: var(--muted); font-size: 12px; white-space: nowrap; }
@@ -174,3 +174,16 @@ footer>.hint { text-align: center; margin-bottom: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; }
 }
+
+.xpath-settings { margin: 12px 0; padding: 12px; border: 1px solid var(--border); border-radius: 5px; }
+.xpath-settings>label { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; font-size: 11px; }
+.xpath-settings>label span { font-size: 10px; color: var(--muted); }
+#xpath, #excluded-selectors { display: block; resize: vertical; width: 100%; min-height: 50px; margin: 9px 0; padding: 8px; border: 1px solid var(--border); border-radius: 4px; font: 11px/1.6 ui-monospace, monospace; color: var(--accent); background: var(--paper); }
+.xpath-actions { display: flex; gap: 12px; align-items: center; font-size: 11px; }
+#apply-xpath { border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; }
+.xpath-settings .hint { margin-bottom: 0; overflow-wrap: anywhere; }
+#xpath-status.error { color: #b05747; }
+
+.xpath-settings>summary { margin: -12px; padding: 11px 12px; }
+.xpath-settings[open]>summary { margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+#site-rules-count { color: var(--muted); font-size: 10px; }

@@ -22,3 +22,18 @@ export async function setIgnored(domain, hash, ignored) {
   const response = await chrome.runtime.sendMessage({ type: 'set-ignored', domain, hash, ignored });
   if (!response?.ok) throw new Error(response?.error || '无法保存忽略规则');
 }
+
+export function xpathStorageKey(domain) { return `xpath:v1:${domain}`; }
+export async function loadXPath(domain) {
+  if (!domain) return '';
+  const key = xpathStorageKey(domain);
+  const value = (await chrome.storage.local.get(key))[key];
+  return typeof value === 'string' ? value : '';
+}
+export function exclusionsStorageKey(domain) { return `excluded-selectors:v1:${domain}`; }
+export async function loadExclusions(domain) {
+  if (!domain) return '';
+  const key = exclusionsStorageKey(domain);
+  const value = (await chrome.storage.local.get(key))[key];
+  return typeof value === 'string' ? value : '';
+}

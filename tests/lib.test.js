@@ -11,9 +11,9 @@ test('format inference respects returned MIME over misleading URL', () => {
 
 test('download filenames cannot escape folder or use reserved Windows names', () => {
   const name = filename({ url: 'https://example.com/..%2f..%2fCON.jpg' }, 0, 'image/png');
-  assert.equal(name, 'ImageDown/001-_.._CON.png');
-  assert.equal(filename({ url: 'data:image/png;base64,abc' }, 2, 'image/png'), 'ImageDown/003-image.png');
-  assert.equal(filename({ url: 'https://example.com/a.webp' }, 10, 'image/jpeg', 'jpg'), 'ImageDown/011-a.jpg');
+  assert.equal(name, 'ImageTaken/001-_.._CON.png');
+  assert.equal(filename({ url: 'data:image/png;base64,abc' }, 2, 'image/png'), 'ImageTaken/003-image.png');
+  assert.equal(filename({ url: 'https://example.com/a.webp' }, 10, 'image/jpeg', 'jpg'), 'ImageTaken/011-a.jpg');
 });
 
 test('filters combine and do not silently discard unknown/failed candidates', () => {
