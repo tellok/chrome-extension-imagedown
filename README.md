@@ -1,4 +1,9 @@
-# ImageDown
+# ImageTaken
+
+<img src="extension/assets/imagetaken-logo.png" alt="ImageTaken Logo" width="144">
+
+[GitHub 仓库](https://github.com/tellok/chrome-extension-imagetoken)
+
 
 一个原生 JavaScript、零运行时依赖的 Chrome Manifest V3 图片下载扩展。参考 Imageye 的图片浏览和批量下载工作流，独立实现代码与界面。
 
@@ -6,9 +11,9 @@
 
 ## 界面
 
-0.3.0 使用受 Notion 启发的文档与图库界面：纸白底色、黑灰层级、细边框、紧凑工具栏、低圆角图片卡片和黑色下载按钮。侧边栏与独立标签页共用响应式布局；图标使用本地 SVG，图片本身保留原始颜色。
+0.4.0 使用受 Notion 启发的文档与图库界面：纸白底色、黑灰层级、细边框、紧凑工具栏、低圆角图片卡片和黑色下载按钮。侧边栏与独立标签页共用响应式布局；图标使用本地 SVG，图片本身保留原始颜色。
 
-标题区和空状态包含两张为本项目独立生成的黑白线描插图，扩展运行时完全从本地加载，没有远程字体、设计服务或图片服务依赖。素材、生成方式及完整提示词见 [插图说明](docs/illustrations.md)。这是 ImageDown 自身的界面设计，不隶属于 Notion。
+标题区和空状态包含两张为本项目独立生成的黑白线描插图，扩展运行时完全从本地加载，没有远程字体、设计服务或图片服务依赖。素材、生成方式及完整提示词见 [插图说明](docs/illustrations.md)。这是 ImageTaken 自身的界面设计，不隶属于 Notion。
 
 ## 安装
 
@@ -17,8 +22,8 @@
 1. 克隆此仓库，或下载并解压打包后的 ZIP。
 2. 打开 `chrome://extensions`，启用右上角的「开发者模式」。
 3. 点击「加载已解压的扩展程序」，选择仓库的 **`extension` 文件夹**，或包含 `manifest.json` 的 ZIP 解压目录。
-4. 打开网页，点击 ImageDown 图标，在侧边栏查看图片。右上角 `↗` 可以打开独立标签页。
-5. 选择图片并下载，文件保存到浏览器下载目录的 `ImageDown` 文件夹。
+4. 打开网页，点击 ImageTaken 图标，在侧边栏查看图片。右上角 `↗` 可以打开独立标签页。
+5. 选择图片并下载，文件保存到浏览器下载目录的 `ImageTaken` 文件夹。
 
 页面中的懒加载内容需要先滚动或展开，再点击 `↻` 重新扫描。批量下载期间保持侧边栏或独立标签页打开。Chrome 的下载询问、站点访问权限及企业策略可能影响下载。
 
@@ -36,6 +41,28 @@
 - 按当前网页 hostname 保存图片忽略规则，支持一键忽略、显示已忽略图片及取消忽略。
 
 这是核心图片下载工作流的实现；不包含 Imageye 的反向搜图、选区截图、ZIP 合并下载及全部站点专用适配。
+
+## 网站采集规则：XPath 与 CSS 排除
+
+在「图片范围」粘贴 Chrome DevTools Elements 中右键节点 → Copy → Copy XPath / Copy full XPath 的结果，然后点击「保存并应用」。例如 `//*[@id="content"]` 或 `/html/body/main/div[2]`。范围包含匹配元素本身及其子树，因此直接选择 `<img>` 也可以；多个节点的结果合并去重。只接受节点集合，不接受 `$x(...)` JavaScript 命令或 `count(...)` 标量表达式。
+
+「排除图片」支持一条或多条 CSS 选择器，每行一条，也可以使用逗号分隔，例如：
+
+```css
+.img-xxx
+.advertisement img
+[data-role="avatar"], .site-logo
+```
+
+`.img-xxx` 排除具有这个 class 的图片；匹配容器时同时排除其子树中的图片、背景、伪元素、Canvas 等。相同地址如果还被范围内其他未排除元素引用，仍然保留。开启 XPath 或 CSS 排除后，资源时间线仅补充已经从允许的 DOM 元素发现的图片体积，不新增没有 DOM 归属的资源，避免已排除的图片从资源记录重新出现。
+
+处理顺序是 **XPath 范围 → CSS 排除 → 图片去重 → 宽高、体积、格式、搜索、忽略等现有筛选**。XPath 留空时使用全页范围。XPath 启用时仅扫描主文档，不独立匹配 iframe 的相似路径；未配置 XPath 时仍支持有权限访问的 iframe。主文档中的开放 Shadow DOM 可随宿主子树采集，XPath 本身不跨越 Shadow DOM 边界。
+
+两种规则按顶层网页的 hostname 保存到本机，包含所有路径、协议、端口，不同子域名独立。重新打开面板、重新扫描或切换同域页面时自动应用。语法错误不保存；无匹配时显示空结果及提示，不自动退回全页。「清除网站规则」清空当前域名的 XPath 与 CSS 排除，保留尺寸阈值及已忽略图片；「清除筛选」只清除普通筛选，不更改网站规则。
+
+## Logo
+
+ImageTaken 使用原创黑白图片取景框与采集勾选符号，延续纸面图库的视觉风格。Logo 已用于扩展工具栏图标、扩展页面标题栏和本 README，全部从本地加载。使用内置 Imagegen 生成，原图与完整提示词见 [Logo 说明](docs/logo.md)。
 
 ## 重试加载失败的图片
 
@@ -114,7 +141,7 @@
 | `http://*/*`、`https://*/*` | 访问跨域 iframe 及跨域图片；若收窄站点访问范围，对应来源可能不可用 |
 | `downloads` | 保存文件并跟踪实际完成或中断状态 |
 | `sidePanel` | 保持图片浏览和批量下载界面打开 |
-| `storage` | 本地保存三个筛选阈值及按网站域名分组的图片忽略哈希，并同步已打开的面板 |
+| `storage` | 本地保存三个筛选阈值及按网站域名分组的 XPath、CSS 排除规则与图片忽略哈希，并同步已打开的面板 |
 
 没有常驻网页内容脚本、请求拦截、Debugger、Cookie API 或页面主世界脚本。采集器只在需要时注入扩展隔离世界；页面脚本无法调用扩展的任意 URL 下载代理。
 
@@ -125,7 +152,7 @@
 ```sh
 npm run check       # manifest 引用和 JS 语法
 npm test            # 筛选、类型识别与文件名安全
-npm run package     # dist/imagedown-0.3.0.zip，manifest 位于 ZIP 根目录
+npm run package     # dist/imagetaken-0.4.0.zip，manifest 位于 ZIP 根目录
 ```
 
 真实 Chromium 集成测试：
@@ -151,7 +178,7 @@ extension/
   api.js              扫描聚合、扩展请求、转换和下载
   lib.js              筛选、文件类型和安全文件名
   metadata.js         体积估算、人类可读格式和稳定图片元数据哈希
-  preferences.js      筛选阈值与网站忽略规则持久化
+  preferences.js      筛选阈值、网站 XPath / CSS 排除和忽略规则持久化
   previews.js         绕过失败缓存读取预览，验证图片解码与临时 URL 生命周期
   panel.html/css/js   原生侧边栏与独立标签页界面
 scripts/              校验与打包

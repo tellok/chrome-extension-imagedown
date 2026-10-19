@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>ImageDown · 页面图片</title>
+  <title>ImageTaken · 页面图片</title>
   <link rel="stylesheet" href="panel.css">
 </head>
 <body>
@@ -20,7 +20,7 @@
     <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
   </svg>
   <header>
-    <div class="brand"><img class="logo" src="icons/48.png" alt=""><h1>ImageDown</h1><span class="breadcrumb-separator" aria-hidden="true">/</span><span class="breadcrumb-page">图片库</span></div>
+    <div class="brand"><img class="logo" src="icons/48.png" alt="ImageTaken Logo"><h1>ImageTaken</h1><span class="breadcrumb-separator" aria-hidden="true">/</span><span class="breadcrumb-page">图片库</span></div>
     <div class="header-actions"><button id="expand" class="icon-button" title="在独立标签页打开" aria-label="在独立标签页打开"><svg class="ui-icon" aria-hidden="true"><use href="#icon-expand"/></svg></button><button id="refresh" class="icon-button" title="重新扫描页面" aria-label="重新扫描页面"><svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"/></svg></button></div>
   </header>
   <main>
@@ -43,6 +43,16 @@
       <p class="hint">阈值自动保存，设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。</p>
       <p id="ignore-scope" class="hint"></p>
     </details>
+    <details id="site-rules" class="xpath-settings"><summary>网站采集规则 <span id="site-rules-count">未启用</span><span class="chevron"><svg class="ui-icon" aria-hidden="true"><use href="#icon-chevron"/></svg></span></summary>
+      <label for="xpath">图片范围 <span>XPath · 按网站保存</span></label>
+      <textarea id="xpath" rows="2" spellcheck="false" placeholder='例如：//*[@id="content"]' aria-describedby="xpath-help xpath-status"></textarea>
+      <label for="excluded-selectors">排除图片 <span>CSS 选择器 · 每行一条</span></label>
+      <textarea id="excluded-selectors" rows="2" spellcheck="false" placeholder=".img-xxx&#10;.advertisement img" aria-describedby="exclusions-help"></textarea>
+      <p id="exclusions-help" class="hint">排除匹配元素及其子树中的图片，支持多个选择器（每行一条或逗号分隔）。按当前网站域名保存。</p>
+      <div class="xpath-actions"><button id="apply-xpath">保存并应用</button><button id="clear-xpath" class="text-button">清除网站规则</button></div>
+      <p id="xpath-help" class="hint">粘贴 DevTools → Copy XPath / Copy full XPath。仅提取主文档匹配节点及子树中的图片，再应用其他筛选；留空扫描全页。</p>
+      <p id="xpath-status" class="hint" role="status"></p>
+    </details>
     <div class="library-toolbar"><label class="check-line"><input id="select-all" type="checkbox"><span id="visible-count">0 张图片</span></label><div class="toolbar-right"><select id="sort" aria-label="排序"><option value="position">页面顺序</option><option value="area">面积从大到小</option><option value="width">宽度从大到小</option></select><button id="layout" class="icon-button" aria-label="切换为列表布局" title="切换布局" data-view="grid"><svg class="ui-icon" aria-hidden="true" data-icon="list"><use href="#icon-list"/></svg><svg class="ui-icon" aria-hidden="true" data-icon="grid"><use href="#icon-grid"/></svg></button></div></div>
     <div id="retry-toolbar" class="retry-toolbar" hidden><button id="retry-failed" title="重试所有已发现且加载失败的图片，包含被筛选隐藏的图片；不自动下载">↻ 重试所有失败图片</button><span id="retry-summary" role="status"></span></div>
     <div id="notice" role="status" hidden></div>
@@ -52,7 +62,7 @@
   <footer>
     <div class="selection-row"><span id="selection-count">已选择 0 张</span><button id="copy" class="text-button" disabled>复制链接</button></div>
     <div class="download-row"><select id="format" aria-label="下载格式"><option value="original">保留原格式</option><option value="png">转为 PNG</option><option value="jpg">转为 JPG</option><option value="webp">转为 WebP</option></select><button id="download" class="primary" disabled><svg class="ui-icon" aria-hidden="true"><use href="#icon-download"/></svg>下载所选图片</button></div>
-    <p id="progress" role="status">文件将保存到下载目录的 ImageDown 文件夹</p>
+    <p id="progress" role="status">文件将保存到下载目录的 ImageTaken 文件夹</p>
     <p id="conversion-note" class="hint" hidden>格式转换及像素兜底仅保留静态画面；JPG 透明部分填充白色。</p>
   </footer>
   <template id="card-template">

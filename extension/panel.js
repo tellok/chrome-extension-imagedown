@@ -1,12 +1,12 @@
 import { scanTab, downloadImage } from './api.js';
 import { filterImages, imageType, METHOD_LABELS } from './lib.js';
 import { DEFAULT_THRESHOLDS, THRESHOLD_KEYS, normalizeThreshold, siteDomain, ignoreStorageKey, imageSize, formatBytes } from './metadata.js';
-import { loadThresholds, saveThresholds, loadIgnored, setIgnored } from './preferences.js';
+import { loadThresholds, saveThresholds, loadIgnored, setIgnored, loadXPath, xpathStorageKey, loadExclusions, exclusionsStorageKey } from './preferences.js';
 import { loadPreview } from './previews.js';
 
 const $ = id => document.getElementById(id);
 const pinnedId = Number(new URLSearchParams(location.search).get('tab')) || null;
-const state = { tab: null, domain: '', ignored: new Set(), items: [], selected: new Set(), results: new Map(), scanning: false, busy: false, generation: 0, pendingTab: null, retryBatch: null };
+const state = { tab: null, domain: '', xpath: '', exclusions: '', ignored: new Set(), items: [], selected: new Set(), results: new Map(), scanning: false, busy: false, generation: 0, pendingTab: null, retryBatch: null };
 const sourceLabels = { img: '页面图片', src: '图片地址', css: 'CSS', pseudo: '伪元素', canvas: 'Canvas', svg: 'SVG', 'svg-image': 'SVG 图片', lazy: '懒加载', srcset: '响应式', poster: '视频封面', resource: '资源', link: '图片链接' };
 
 function filters() {
@@ -127,6 +127,7 @@ function selectionUI() {
   $('refresh').disabled = state.busy || state.scanning;
   $('format').disabled = state.busy || previewWork;
   $('expand').disabled = !state.tab || state.busy;
+  for (const id of ['apply-xpath', 'clear-xpath', 'xpath', 'excluded-selectors']) $(id).disabled = state.busy || state.scanning || !state.domain;
   for (const input of $('gallery').querySelectorAll('input,button')) input.disabled = state.busy;
   for (const button of $('gallery').querySelectorAll('.ignore-image[data-unavailable]')) button.disabled = true;
   for (const button of $('gallery').querySelectorAll('.single-download')) button.disabled = state.busy || previewWork;
@@ -235,25 +236,36 @@ async function refresh(tab = state.tab) {
   state.items = []; state.selected.clear(); state.results.clear();
   $('ignored-count').textContent = '(0)';
   $('ignore-scope').textContent = state.domain ? `忽略规则仅应用于 ${state.domain} 的所有路径（不区分协议和端口）。` : '';
-  $('progress').textContent = '文件将保存到下载目录的 ImageDown 文件夹';
+  $('progress').textContent = '文件将保存到下载目录的 ImageTaken 文件夹';
   $('page-title').textContent = tab.title || '未命名页面';
   try { $('page-host').textContent = new URL(tab.url).host; } catch { $('page-host').textContent = tab.url || ''; }
   $('frame-count').textContent = '扫描中';
   notice(''); render();
   try {
     if (!/^https?:/.test(tab.url || '')) throw new Error('请切换到普通 HTTP / HTTPS 网页。浏览器内部页、商店页及 PDF 阅读器可能不允许扩展访问。');
-    const result = await scanTab(tab.id);
+    const [xpath, exclusions] = await Promise.all([loadXPath(state.domain), loadExclusions(state.domain)]);
+    if (generation !== state.generation) return;
+    state.xpath = xpath; state.exclusions = exclusions;
+    $('site-rules-count').textContent = [xpath && 'XPath 范围', exclusions && 'CSS 排除'].filter(Boolean).join(' · ') || '未启用';
+    $('xpath').value = xpath; $('excluded-selectors').value = exclusions;
+    $('xpath-status').classList.remove('error');
+    $('xpath-status').textContent = `规则应用于 ${state.domain} 的所有路径（不区分协议和端口）。`;
+    const result = await scanTab(tab.id, xpath, exclusions);
     const ignored = await loadIgnored(siteDomain(tab.url));
     if (generation !== state.generation) return;
     state.items = result.items;
     state.ignored = ignored;
     applyIgnored();
     $('frame-count').textContent = `${result.frames} 个框架`;
-    if (result.truncated) notice('图片过多：已达到单个框架 4000 个地址或 12 MiB 地址数据的上限，部分图片未列出。');
+    if (xpath) $('xpath-status').textContent = `${state.domain} · XPath 匹配 ${result.matchedRoots} 个节点 · 提取 ${result.items.length} 张图片`;
+    if (xpath && !result.matchedRoots) notice('XPath 未匹配任何节点。请检查路径或等待页面内容加载后重新扫描。');
+    else if (result.truncated) notice('图片过多：已达到单个框架 4000 个地址或 12 MiB 地址数据的上限，部分图片未列出。');
     else if (!result.items.length) notice('尚未发现图片。请先滚动或展开页面内容，然后重新扫描；部分受保护的框架可能无法访问。');
   } catch (error) {
     if (generation !== state.generation) return;
     $('frame-count').textContent = '无法扫描';
+    $('xpath-status').textContent = error.message;
+    $('xpath-status').classList.add('error');
     notice(`扫描失败：${error.message}`, true);
   } finally {
     if (generation === state.generation) { state.scanning = false; render(); }
@@ -292,9 +304,30 @@ async function runDownloads(items) {
   state.busy = false;
   selectionUI();
   if (failed) notice(`${done} 张下载完成，${failed} 张失败。悬停失败标记可查看原因；可单独重试。`, true);
-  else notice(`${done} 张图片已下载到 ImageDown 文件夹。`);
+  else notice(`${done} 张图片已下载到 ImageTaken 文件夹。`);
   if (state.pendingTab) { const tab = state.pendingTab; state.pendingTab = null; await refresh(tab); }
 }
+
+async function applySiteRules(clear = false) {
+  if (!state.tab || state.busy || state.scanning) return;
+  const domain = state.domain;
+  const tab = state.tab;
+  try {
+    // Persist the pair atomically; other panels must never scan half an update.
+    const xpath = clear ? '' : $('xpath').value.trim();
+    const exclusions = clear ? '' : $('excluded-selectors').value.trim();
+    if (xpath) document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    for (const selector of exclusions.split('\n').map(s => s.trim()).filter(Boolean)) document.querySelector(selector);
+    state.xpath = xpath; state.exclusions = exclusions;
+    await chrome.storage.local.set({ [xpathStorageKey(domain)]: xpath, [exclusionsStorageKey(domain)]: exclusions });
+    if (state.domain === domain) await refresh(tab);
+  } catch (error) {
+    $('xpath-status').textContent = `网站规则未保存：${error.message}`;
+    $('xpath-status').classList.add('error');
+  }
+}
+$('apply-xpath').addEventListener('click', () => void applySiteRules());
+$('clear-xpath').addEventListener('click', () => void applySiteRules(true));
 
 for (const id of ['query', 'min-width', 'min-height', 'min-size']) $(id).addEventListener('input', scheduleRender);
 for (const [field, id] of Object.entries(thresholdInputs)) {
@@ -321,6 +354,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
       applyThresholds({ [field]: normalizeThreshold(changes[key].newValue ?? DEFAULT_THRESHOLDS[field], DEFAULT_THRESHOLDS[field]) });
     }
   }
+  const xpathChange = changes[xpathStorageKey(state.domain)];
+  const exclusionsChange = changes[exclusionsStorageKey(state.domain)];
+  if (state.tab && ((xpathChange && (xpathChange.newValue || '') !== state.xpath) ||
+      (exclusionsChange && (exclusionsChange.newValue || '') !== state.exclusions))) void refresh();
   const change = changes[ignoreStorageKey(state.domain)];
   if (change) {
     state.ignored = new Set(Array.isArray(change.newValue) ? change.newValue : []);

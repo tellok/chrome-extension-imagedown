@@ -83,7 +83,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(PNG if ok else b'Temporarily unavailable')
             return
         if path in ('/fixture', '/other-page'):
-            html = f'''<!doctype html><title>ImageDown 测试图片集</title>
+            html = f'''<!doctype html><title>ImageTaken 测试图片集</title>
             <style>body{{font-family:system-ui}}img,canvas{{max-width:200px}} .bg{{height:80px;background:url('/background.png')}}
             .pseudo::before{{content:url('/pseudo.png')}}</style>
             <h1>Page resources</h1>
@@ -214,6 +214,77 @@ def test_preview_retries(context, worker, extension_id, origin, output):
     source.close()
 
 
+def test_site_scopes(context, worker, extension_id, origin, output):
+    source = context.new_page()
+    source.goto(origin + '/fixture')
+    source.evaluate('window.ready')
+    source.evaluate("""() => {
+      const scope=document.createElement('section'); scope.id='scope';
+      scope.innerHTML='<img src="/boundary.png" class="img-xxx"><div class="ad"><img src="/cached.png"></div><img src="/narrow.png"><div class="bg"></div><picture><source srcset="/boundary.png"><img src="/boundary.png" class="img-xxx"></picture>';
+      document.body.append(scope);
+    }""")
+    tab_id = worker.evaluate('''async url => (await chrome.tabs.query({})).filter(t => t.url===url).at(-1).id''', source.url)
+    panel = context.new_page()
+    panel.goto(f'chrome-extension://{extension_id}/panel.html?tab={tab_id}')
+    expect(panel.locator('#frame-count')).to_have_text('2 个框架')
+    panel.locator('#site-rules').evaluate('(el) => el.open = true')
+    panel.locator('#xpath').fill('//*[@id="scope"]')
+    panel.locator('#excluded-selectors').fill('.img-xxx\n.ad')
+    panel.locator('#apply-xpath').click()
+    expect(panel.locator('#frame-count')).to_have_text('1 个框架')
+    expect(panel.locator('#total')).to_have_text('2')
+    expect(panel.locator('.card .image-url').filter(has_text='background.png')).to_have_count(1)
+    expect(panel.locator('.card .image-url').filter(has_text='narrow.png')).to_have_count(0)
+    panel.locator('#filters').evaluate('(el) => el.open = true')
+    panel.locator('#reset').click()
+    expect(panel.locator('.card .image-url').filter(has_text='narrow.png')).to_have_count(1)
+    panel.reload()
+    expect(panel.locator('#frame-count')).to_have_text('1 个框架')
+    expect(panel.locator('#xpath')).to_have_value('//*[@id="scope"]')
+    expect(panel.locator('#excluded-selectors')).to_have_value('.img-xxx\n.ad')
+    panel.locator('#site-rules').evaluate('(el) => el.open = true')
+    # An XPath selecting the image itself includes that node, not only descendants.
+    panel.locator('#xpath').fill('/html/body/section[@id="scope"]/img[2]')
+    panel.locator('#apply-xpath').click()
+    expect(panel.locator('#total')).to_have_text('1')
+    panel.locator('#xpath').fill('//*[@id="no-match"]')
+    panel.locator('#apply-xpath').click()
+    expect(panel.locator('#total')).to_have_text('0')
+    expect(panel.locator('#notice')).to_contain_text('XPath 未匹配')
+    panel.locator('#xpath').fill('//*[')
+    panel.locator('#apply-xpath').click()
+    expect(panel.locator('#xpath-status')).to_contain_text('未保存')
+    panel.locator('#xpath').fill('')
+    panel.locator('#excluded-selectors').fill('[broken=')
+    panel.locator('#apply-xpath').click()
+    expect(panel.locator('#xpath-status')).to_contain_text('未保存')
+    # CSS-only rules must not be undone by the resource timeline.
+    panel.locator('#excluded-selectors').fill('.img-xxx, .ad')
+    source.evaluate("""() => document.querySelectorAll('img[src="/boundary.png"], img[src="/cached.png"]').forEach(el=>el.classList.add('img-xxx'))""")
+    panel.locator('#apply-xpath').click()
+    expect(panel.locator('#frame-count')).to_have_text('2 个框架')
+    urls=panel.evaluate('''async tabId => (await (await import('./api.js')).scanTab(tabId, '', '.img-xxx, .ad')).items.map(i=>i.url)''', tab_id)
+    assert origin + '/boundary.png' not in urls
+    assert origin + '/cached.png' not in urls
+    settings=worker.evaluate('async () => await chrome.storage.local.get(null)')
+    assert settings['excluded-selectors:v1:127.0.0.1'] == '.img-xxx, .ad'
+    assert panel.evaluate("async () => (await import('./preferences.js')).loadExclusions('localhost')") == ''
+    source.goto(origin + '/other-page')
+    source.evaluate('window.ready')
+    expect(panel.locator('#excluded-selectors')).to_have_value('.img-xxx, .ad')
+    panel.locator('#clear-xpath').click()
+    expect(panel.locator('#xpath')).to_have_value('')
+    expect(panel.locator('#excluded-selectors')).to_have_value('')
+    expect(panel.locator('#frame-count')).to_have_text('2 个框架')
+    # API callers also reject invalid selectors or scalar XPath results.
+    for xpath, selectors in [('count(//img)', ''), ('', '[broken=')]:
+        result=panel.evaluate('''async args => { try { await (await import('./api.js')).scanTab(...args); return ''; } catch(e) { return e.message; } }''', [tab_id, xpath, selectors])
+        assert result
+    panel.screenshot(path=str(output / 'imagetaken-site-rules.png'), full_page=True)
+    panel.close()
+    source.close()
+
+
 def test_notion_layout(panel, output):
     panel.bring_to_front()
     panel.locator('#query').fill('')
@@ -263,7 +334,7 @@ def main():
     if not executable:
         candidates = sorted((Path.home() / 'Library/Caches/ms-playwright').glob('chromium-*/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'))
         executable = str(candidates[-1]) if candidates else None
-    with tempfile.TemporaryDirectory(prefix='imagedown-browser-') as profile, sync_playwright() as p:
+    with tempfile.TemporaryDirectory(prefix='imagetaken-browser-') as profile, sync_playwright() as p:
         context = p.chromium.launch_persistent_context(
             profile, executable_path=executable, channel='chromium', headless=True,
             accept_downloads=True, viewport={'width': 1100, 'height': 900},
@@ -376,7 +447,7 @@ def main():
             panel.locator('#select-all').check()
             expect(panel.locator('#selection-count')).to_have_text('已选择 1 张')
             panel.locator('#download').click()
-            expect(panel.locator('#notice')).to_have_text('1 张图片已下载到 ImageDown 文件夹。', timeout=20000)
+            expect(panel.locator('#notice')).to_have_text('1 张图片已下载到 ImageTaken 文件夹。', timeout=20000)
             expect(panel.locator('.item-status')).to_contain_text('页面缓存')
             panel.locator('#select-all').uncheck()
             panel.locator('#query').fill('blob:')
@@ -384,7 +455,7 @@ def main():
             panel.locator('#select-all').check()
             panel.locator('#format').select_option('jpg')
             panel.locator('#download').click()
-            expect(panel.locator('#notice')).to_have_text('2 张图片已下载到 ImageDown 文件夹。', timeout=20000)
+            expect(panel.locator('#notice')).to_have_text('2 张图片已下载到 ImageTaken 文件夹。', timeout=20000)
             for status in panel.locator('.item-status').all():
                 expect(status).to_contain_text('→ JPG')
             completed = panel.evaluate('''async () => (await chrome.downloads.search({})).filter(d => d.state === 'complete').map(d => ({filename:d.filename,mime:d.mime}))''')
@@ -520,6 +591,7 @@ def main():
             assert panel.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'filter panel overflows'
             assert not errors, errors
             test_preview_retries(context, worker, extension_id, origin, OUTPUT)
+            test_site_scopes(context, worker, extension_id, origin, OUTPUT)
             test_notion_layout(panel, OUTPUT)
             assert not errors, errors
 

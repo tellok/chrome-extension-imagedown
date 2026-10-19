@@ -5,7 +5,7 @@ import json
 
 root = Path(__file__).resolve().parents[1]
 version = json.loads((root / 'extension/manifest.json').read_text())['version']
-target = root / 'dist' / f'imagedown-{version}.zip'
+target = root / 'dist' / f'imagetaken-{version}.zip'
 target.parent.mkdir(exist_ok=True)
 with ZipFile(target, 'w', ZIP_DEFLATED) as archive:
     for file in sorted((root / 'extension').rglob('*')):
