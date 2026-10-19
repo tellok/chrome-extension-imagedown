@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "ImageDown · 页面图片下载",
+  "version": "0.1.0",
+  "description": "发现页面图片，优先读取页面已加载的资源，支持筛选、批量下载和格式转换。",
+  "minimum_chrome_version": "116",
+  "permissions": ["activeTab", "scripting", "downloads", "sidePanel"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "打开 ImageDown" },
+  "side_panel": { "default_path": "panel.html" },
+  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; img-src 'self' data: blob: http: https:; connect-src http: https: data: blob:"
+  }
+}

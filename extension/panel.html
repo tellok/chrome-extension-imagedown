@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ImageDown · 页面图片</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="logo" aria-hidden="true">▧</span><div><h1>ImageDown</h1><p>把页面里的图片带走</p></div></div>
+    <div class="header-actions"><button id="expand" class="icon-button" title="在独立标签页打开" aria-label="在独立标签页打开">↗</button><button id="refresh" class="icon-button" title="重新扫描页面" aria-label="重新扫描页面">↻</button></div>
+  </header>
+  <main>
+    <section class="page-context"><span class="live-dot"></span><div><p id="page-title">选择一个网页开始</p><span id="page-host">点击扩展图标，扫描当前页面</span></div><span id="frame-count" class="pill">就绪</span></section>
+    <section class="intro"><div><span class="eyebrow">PAGE LIBRARY</span><h2>页面图片 <span id="total">0</span></h2></div><span class="local-badge">本地处理</span></section>
+    <p class="strategy">优先读取页面资源 <span>·</span> 预览失败也会保留图片</p>
+    <label class="search"><span aria-hidden="true">⌕</span><input id="query" type="search" placeholder="搜索图片地址或描述" aria-label="搜索图片地址或描述"><kbd>⌘ K</kbd></label>
+    <details id="filters"><summary>筛选图片 <span id="filter-count"></span><span class="chevron">⌄</span></summary>
+      <div class="filter-fields">
+        <label>最小宽度<input id="min-width" type="number" min="0" max="100000" placeholder="不限"><span>px</span></label>
+        <label>最小高度<input id="min-height" type="number" min="0" max="100000" placeholder="不限"><span>px</span></label>
+        <label>图片格式<select id="type"><option value="">全部格式</option><option>jpg</option><option>png</option><option>webp</option><option>gif</option><option>svg</option><option>avif</option><option>bmp</option><option>ico</option><option value="unknown">未知格式</option></select></label>
+        <label>发现来源<select id="source"><option value="">全部来源</option><option value="img">页面图片</option><option value="css">CSS 背景 / 遮罩</option><option value="pseudo">伪元素</option><option value="canvas">Canvas</option><option value="svg">内嵌 SVG</option><option value="lazy">懒加载地址</option><option value="srcset">响应式候选</option><option value="resource">已请求资源</option><option value="poster">视频封面</option><option value="link">图片链接</option></select></label>
+      </div>
+      <label class="check-line"><input id="loaded" type="checkbox">只看页面已解码的图片 / 已渲染的画布</label>
+      <button id="reset" class="text-button">清除筛选</button>
+      <p class="hint">尺寸未知的图片会在设置尺寸条件后隐藏。</p>
+    </details>
+    <div class="library-toolbar"><label class="check-line"><input id="select-all" type="checkbox"><span id="visible-count">0 张图片</span></label><div class="toolbar-right"><select id="sort" aria-label="排序"><option value="position">页面顺序</option><option value="area">面积从大到小</option><option value="width">宽度从大到小</option></select><button id="layout" class="icon-button" aria-label="切换为列表布局" title="切换布局">☷</button></div></div>
+    <div id="notice" role="status" hidden></div>
+    <div id="empty" class="empty"><span aria-hidden="true">▧</span><h3>还没有图片</h3><p>打开一个网页，再点击右上角重新扫描。</p></div>
+    <section id="gallery" class="gallery" aria-label="图片列表"></section>
+  </main>
+  <footer>
+    <div class="selection-row"><span id="selection-count">已选择 0 张</span><button id="copy" class="text-button" disabled>复制链接</button></div>
+    <div class="download-row"><select id="format" aria-label="下载格式"><option value="original">保留原格式</option><option value="png">转为 PNG</option><option value="jpg">转为 JPG</option><option value="webp">转为 WebP</option></select><button id="download" class="primary" disabled>↓ 下载所选图片</button></div>
+    <p id="progress" role="status">文件将保存到下载目录的 ImageDown 文件夹</p>
+    <p id="conversion-note" class="hint" hidden>格式转换及像素兜底仅保留静态画面；JPG 透明部分填充白色。</p>
+  </footer>
+  <template id="card-template">
+    <article class="card">
+      <div class="image-area"><div class="preview-fallback"><span>▧</span><small>预览不可用<br>仍可尝试下载</small></div><img alt="" loading="lazy" referrerpolicy="no-referrer"><label class="card-check"><input type="checkbox" aria-label="选择图片"></label><span class="type-badge"></span></div>
+      <div class="card-info"><div class="card-meta"><strong class="dimensions"></strong><span class="source-badge"></span></div><p class="image-url"></p><div class="card-bottom"><span class="item-status"></span><button class="single-download" aria-label="下载这张图片" title="下载这张图片">↓</button></div></div>
+    </article>
+  </template>
+  <script type="module" src="panel.js"></script>
+</body>
+</html>
