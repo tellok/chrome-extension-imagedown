@@ -17,15 +17,17 @@ export function filename(item, index, mime, format = 'original') {
   return `ImageDown/${String(index + 1).padStart(3, '0')}-${name}.${ext === 'unknown' ? 'img' : ext}`;
 }
 
-export function filterImages(items, filters) {
+export function filterImages(items, filters, sizeOf = item => ({ bytes: Number.isFinite(item.bytes) ? item.bytes : null })) {
   const query = filters.query.toLowerCase().trim();
   const filtered = items.filter(item =>
     (!query || `${item.url} ${item.alt}`.toLowerCase().includes(query)) &&
     (!filters.loaded || item.loaded) &&
     (!filters.type || imageType(item) === filters.type) &&
     (!filters.source || item.sources.includes(filters.source)) &&
-    (!filters.width || item.width >= filters.width) &&
-    (!filters.height || item.height >= filters.height));
+    (!item.ignored || filters.showIgnored) &&
+    (!filters.width || !item.width || item.width >= filters.width) &&
+    (!filters.height || !item.height || item.height >= filters.height) &&
+    (!filters.minBytes || sizeOf(item).bytes == null || sizeOf(item).bytes >= filters.minBytes));
   return filtered.sort((a, b) => {
     if (filters.sort === 'area') return b.width * b.height - a.width * a.height;
     if (filters.sort === 'width') return b.width - a.width;

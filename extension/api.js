@@ -1,4 +1,5 @@
 import { filename } from './lib.js';
+import { prepareMetadata } from './metadata.js';
 
 export async function scanTab(tabId) {
   await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ['collector.js'] });
@@ -17,13 +18,14 @@ export async function scanTab(tabId) {
       if (existing) {
         existing.origins.push(origin);
         existing.sources = [...new Set([...existing.sources, ...item.sources])];
+        if (item.bytes > 0 && !(existing.bytes > 0)) Object.assign(existing, { bytes: item.bytes, sizeSource: item.sizeSource });
         if (item.loaded && !existing.loaded) Object.assign(existing, {
           loaded: true, width: item.width, height: item.height, preview: item.preview,
         });
       } else unique.set(key, { ...item, key, origins: [origin], order: unique.size });
     }
   }
-  return { items: [...unique.values()], frames: frames.filter(f => f.result).length, truncated };
+  return { items: await prepareMetadata([...unique.values()]), frames: frames.filter(f => f.result).length, truncated };
 }
 
 async function pageData(tabId, item) {
@@ -138,6 +140,6 @@ export async function downloadImage(tabId, item, index, format) {
   const url = URL.createObjectURL(blob);
   try {
     await save(url, filename(item, index, blob.type, format));
-    return { method: result.method, bytes: blob.size, mime: blob.type, format };
+    return { method: result.method, bytes: blob.size, sourceBytes: result.blob.size, sourceMime: result.blob.type, mime: blob.type, format };
   } finally { URL.revokeObjectURL(url); }
 }

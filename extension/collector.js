@@ -83,6 +83,8 @@
         id, url, sources: [source], element,
         width: extra.width || 0, height: extra.height || 0,
         loaded: !!extra.loaded, preview: extra.preview || '',
+        bytes: extra.snapshot ? Math.max(0, Math.floor(extra.snapshot.split(',')[1].length * 3 / 4) - (extra.snapshot.endsWith('==') ? 2 : extra.snapshot.endsWith('=') ? 1 : 0)) : null,
+        sizeSource: extra.snapshot ? 'Canvas PNG 快照大小' : '',
         kind: extra.kind || '', snapshot: extra.snapshot || '',
         position: rect ? Math.round(rect.top + scrollY) : Number.MAX_SAFE_INTEGER,
         alt: (element?.getAttribute('alt') || '').slice(0, 200),
@@ -152,7 +154,12 @@
     walk(document);
     for (const entry of performance.getEntriesByType('resource')) {
       if (entry.initiatorType === 'img' || /\.(avif|png|jpe?g|gif|webp|svg|bmp|ico)(?:[?#]|$)/i.test(entry.name)) {
-        add(entry.name, 'resource');
+        const record = add(entry.name, 'resource');
+        const bodySize = entry.decodedBodySize || entry.encodedBodySize;
+        if (record && bodySize > 0 && !(entry.responseStatus >= 400)) {
+          record.bytes = bodySize;
+          record.sizeSource = '浏览器资源记录中的响应体大小（非像素内存或含响应头的传输量）';
+        }
       }
     }
     // The side panel and expanded tab may be open at once. A new scan must not

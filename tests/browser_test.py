@@ -35,6 +35,18 @@ def image_bytes(name, width=640, height=420):
 
 PNG = image_bytes('Page image')
 SMALL = image_bytes('Small image', 160, 100)
+def padded_png(width, height, size):
+    data = image_bytes('Threshold image', width, height)
+    assert len(data) <= size
+    return data + b'\0' * (size - len(data))
+
+
+THRESHOLD_IMAGES = {
+    '/narrow.png': padded_png(49, 100, 3000),
+    '/short.png': padded_png(100, 49, 3000),
+    '/under2k.png': padded_png(100, 100, 2047),
+    '/boundary.png': padded_png(50, 50, 2048),
+}
 DATA = 'data:image/png;base64,' + base64.b64encode(SMALL).decode()
 COUNTS = {}
 
@@ -47,7 +59,7 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         origin = f'http://127.0.0.1:{self.server.server_port}'
         other = f'http://127.0.0.1:{self.server.other_port}'
-        if path == '/fixture':
+        if path in ('/fixture', '/other-page'):
             html = f'''<!doctype html><title>ImageDown 测试图片集</title>
             <style>body{{font-family:system-ui}}img,canvas{{max-width:200px}} .bg{{height:80px;background:url('/background.png')}}
             .pseudo::before{{content:url('/pseudo.png')}}</style>
@@ -55,6 +67,7 @@ class Handler(BaseHTTPRequestHandler):
             <img src="/cached.png" alt="cached landscape"><img src="/once.png" alt="expired source">
             <img src="{other}/cross.png" alt="cross origin"><img src="{other}/denied.png" alt="protected image">
             <img src="/auth.png" alt="session image"><img src="/missing.png" alt="broken candidate">
+            <img src="/narrow.png"><img src="/short.png"><img src="/under2k.png"><img src="/boundary.png">
             <img src="/small.png" srcset="/small.png 1x, /large.png 2x" alt="responsive">
             <img data-src="/lazy.png"><img src="{DATA}" alt="embedded"><img srcset="{DATA} 1x, /twox.png 2x">
             <div class="bg"></div><div class="pseudo"></div><div id="shadow"></div>
@@ -97,7 +110,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'image/png')
         self.send_header('Cache-Control', 'no-store' if path in ('/once.png', '/cross.png', '/denied.png') else 'public, max-age=3600')
         self.end_headers()
-        self.wfile.write(SMALL if path in ('/small.png', '/pseudo.png') else PNG)
+        self.wfile.write(THRESHOLD_IMAGES.get(path, SMALL if path in ('/small.png', '/pseudo.png') else PNG))
 
 
 def main():
@@ -131,6 +144,33 @@ def main():
             panel.goto(f'chrome-extension://{extension_id}/panel.html?tab={tab_id}')
             expect(panel.locator('#frame-count')).to_have_text('2 个框架')
             panel.wait_for_load_state('networkidle')
+            expect(panel.locator('#min-width')).to_have_value('50')
+            expect(panel.locator('#min-height')).to_have_value('50')
+            expect(panel.locator('#min-size')).to_have_value('2')
+            for hidden in ('narrow.png', 'short.png', 'under2k.png'):
+                expect(panel.locator('.card .image-url').filter(has_text=hidden)).to_have_count(0)
+            expect(panel.locator('.card .image-url').filter(has_text='boundary.png')).to_have_count(1)
+            boundary = panel.locator('.card').filter(has=panel.locator('.image-url', has_text='boundary.png'))
+            expect(boundary.locator('.image-size')).to_have_text('2.0 KiB')
+            expect(panel.locator('.card .image-url').filter(has_text='missing.png')).to_have_count(1)
+            panel.locator('#filters').evaluate('(el) => el.open = true')
+            panel.locator('#min-width').fill('321')
+            panel.locator('#min-height').fill('123')
+            panel.locator('#min-size').fill('2.5')
+            panel.wait_for_function('''async () => {
+              const s=await chrome.storage.local.get(['filters:width','filters:height','filters:minBytes']);
+              return s['filters:width']===321 && s['filters:height']===123 && s['filters:minBytes']===2560;
+            }''')
+            panel.reload()
+            expect(panel.locator('#frame-count')).to_have_text('2 个框架')
+            expect(panel.locator('#min-width')).to_have_value('321')
+            expect(panel.locator('#min-height')).to_have_value('123')
+            expect(panel.locator('#min-size')).to_have_value('2.5')
+            panel.locator('#filters').evaluate('(el) => el.open = true')
+            panel.locator('#defaults').click()
+            expect(panel.locator('#min-width')).to_have_value('50')
+            expect(panel.locator('.card .image-url').filter(has_text='boundary.png')).to_have_count(1)
+            panel.locator('#filters').evaluate('(el) => el.open = false')
             items = panel.evaluate('''async tabId => (await (await import('./api.js')).scanTab(tabId)).items''', tab_id)
             # Re-scan invalidates IDs; refresh the UI before testing the UI itself later.
             urls = {item['url']: item for item in items}
@@ -143,6 +183,10 @@ def main():
                 assert origin + '/' + path in urls, path
             assert any(item['sources'] == ['svg'] for item in items), 'inline SVG missing'
             assert len([i for i in items if i['kind'] == 'canvas']) == 2
+            assert urls[origin + '/boundary.png']['bytes'] == 2048
+            assert urls[origin + '/under2k.png']['bytes'] == 2047
+            assert urls[origin + '/missing.png']['bytes'] is None
+            assert all(len(item['ignoreHash']) == 64 for item in items if item['url'].startswith('https:') or item['url'].startswith('http:') and item['kind'] != 'canvas')
 
             def read(item):
                 return panel.evaluate('''async ({tabId,item}) => {
@@ -230,6 +274,7 @@ def main():
             panel.locator('#layout').click()
             panel.locator('#filters').evaluate('(el) => el.open = true')
             panel.locator('#min-width').fill('1000')
+            panel.locator('#loaded').check()
             expect(panel.locator('.card')).to_have_count(0)
             panel.locator('#reset').click()
             expect(panel.locator('.card')).not_to_have_count(0)
@@ -241,6 +286,99 @@ def main():
             assert panel.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'narrow panel overflows'
             panel.set_viewport_size({'width': 1100, 'height': 900})
             panel.screenshot(path=str(OUTPUT / 'expanded.png'), full_page=True)
+
+            # URL ignore survives re-scan, panel reload and another page path.
+            panel.locator('#query').fill('cached.png')
+            expect(panel.locator('.card .image-url').filter(has_text='cached.png')).to_have_count(1)
+            panel.locator('#select-all').check()
+            panel.locator('.ignore-image').click()
+            expect(panel.locator('.card')).to_have_count(0)
+            expect(panel.locator('#selection-count')).to_have_text('已选择 0 张')
+            panel.reload()
+            expect(panel.locator('#frame-count')).to_have_text('2 个框架')
+            expect(panel.locator('.card .image-url').filter(has_text='cached.png')).to_have_count(0)
+            source.goto(origin + '/other-page')
+            source.evaluate('window.ready')
+            source.wait_for_load_state('networkidle')
+            panel.get_by_role('button', name='重新扫描页面', exact=True).click()
+            expect(panel.locator('#frame-count')).to_have_text('2 个框架')
+            expect(panel.locator('.card .image-url').filter(has_text='cached.png')).to_have_count(0)
+            panel.locator('#filters').evaluate('(el) => el.open = true')
+            panel.locator('#show-ignored').check()
+            cached = panel.locator('.card').filter(has=panel.locator('.image-url', has_text='cached.png'))
+            expect(cached.locator('.ignored-badge')).to_be_visible()
+
+            # The exact same image URL must be visible on a different page hostname.
+            second_source = context.new_page()
+            second_source.goto(f'http://localhost:{servers[0].server_port}/other-page')
+            second_source.evaluate('window.ready')
+            second_source.evaluate('''async url => { const img=new Image();img.src=url;document.body.append(img);await img.decode(); }''', origin + '/cached.png')
+            second_source.wait_for_load_state('networkidle')
+            second_id = worker.evaluate('''async () => (await chrome.tabs.query({})).find(t => t.url?.startsWith('http://localhost:')).id''')
+            second_panel = context.new_page()
+            second_panel.goto(f'chrome-extension://{extension_id}/panel.html?tab={second_id}')
+            expect(second_panel.locator('#frame-count')).to_have_text('2 个框架')
+            second_panel.locator('#query').fill(origin + '/cached.png')
+            expect(second_panel.locator('.card')).to_have_count(1)
+            expect(second_panel.locator('.card .image-url').filter(has_text=origin + '/cached.png')).to_have_count(1)
+            expect(second_panel.locator('.ignored-badge')).to_be_hidden()
+            second_panel.close()
+            second_source.close()
+            cached.locator('.ignore-image').click()
+            expect(cached.locator('.ignored-badge')).to_be_hidden()
+            panel.locator('#show-ignored').uncheck()
+
+            # Equivalent Base64 spellings persist as the same ignore fingerprint.
+            panel.locator('#query').fill('data:image/png')
+            expect(panel.locator('.card')).to_have_count(1)
+            panel.locator('.ignore-image').click()
+            expect(panel.locator('.card')).to_have_count(0)
+            source.evaluate('''() => {
+              for(const img of document.images) {
+                if(img.src.startsWith('data:image/png')) {
+                  const [header,payload]=img.src.split(',');
+                  img.src=header+',%'+payload.charCodeAt(0).toString(16)+payload.slice(1).replace(/=+$/, '');
+                }
+              }
+            }''')
+            panel.get_by_role('button', name='重新扫描页面', exact=True).click()
+            expect(panel.locator('#frame-count')).to_have_text('2 个框架')
+            expect(panel.locator('.card')).to_have_count(0)
+            panel.locator('#show-ignored').check()
+            expect(panel.locator('.card')).to_have_count(2)
+            panel.locator('.ignore-image').first.click()
+            panel.locator('#show-ignored').uncheck()
+            expect(panel.locator('.card')).to_have_count(2)
+
+            # New Blob UUIDs after reloading the page still match the pixel fingerprint.
+            panel.locator('#query').fill('blob:')
+            expect(panel.locator('.card')).to_have_count(2)
+            expect(panel.locator('.image-url')).to_have_text(['blob: 页面内嵌资源', 'blob: 页面内嵌资源'])
+            panel.locator('.ignore-image').first.click()
+            expect(panel.locator('.card')).to_have_count(0)
+            source.reload()
+            source.evaluate('window.ready')
+            panel.get_by_role('button', name='重新扫描页面', exact=True).click()
+            expect(panel.locator('#frame-count')).to_have_text('2 个框架')
+            expect(panel.locator('.card')).to_have_count(0)
+            panel.locator('#show-ignored').check()
+            expect(panel.locator('.card')).to_have_count(2)
+            panel.locator('.ignore-image').first.click()
+            expect(panel.locator('.ignored-badge:visible')).to_have_count(0)
+            panel.locator('#show-ignored').uncheck()
+
+            # Concurrent ignore writes must be merged in the background worker.
+            panel.evaluate('''async () => {
+              const {setIgnored}=await import('./preferences.js');
+              await Promise.all([setIgnored('127.0.0.1','a'.repeat(64),true),setIgnored('127.0.0.1','b'.repeat(64),true)]);
+              const hashes=(await chrome.storage.local.get('ignored:v1:127.0.0.1'))['ignored:v1:127.0.0.1'];
+              if(!hashes.includes('a'.repeat(64)) || !hashes.includes('b'.repeat(64))) throw new Error('Lost concurrent ignore update');
+            }''')
+            panel.locator('#query').fill('')
+            panel.locator('#defaults').click()
+            panel.set_viewport_size({'width': 420, 'height': 1100})
+            panel.screenshot(path=str(OUTPUT / 'filters-and-ignore.png'))
+            assert panel.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'filter panel overflows'
             assert not errors, errors
 
             # A navigated frame must never service an obsolete read by recycled frame ID.

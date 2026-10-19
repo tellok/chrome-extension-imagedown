@@ -22,7 +22,7 @@ test('filters combine and do not silently discard unknown/failed candidates', ()
   const c = { url: 'https://a/three.jpg', alt: '', width: 1200, height: 800, loaded: true, sources: ['img'], order: 2 };
   const base = { query: '', width: 0, height: 0, loaded: false, source: '', type: '', sort: 'position' };
   assert.equal(filterImages([a, b, c], base).length, 3);
-  assert.deepEqual(filterImages([a, b, c], { ...base, width: 500 }), [c]);
+  assert.deepEqual(filterImages([a, b, c], { ...base, width: 500 }), [b, c]);
   assert.deepEqual(filterImages([a, b, c], { ...base, source: 'css' }), [b]);
   assert.deepEqual(filterImages([a, b, c], { ...base, query: 'CAT', type: 'png' }), [a]);
   assert.deepEqual(filterImages([a, b, c], { ...base, sort: 'area' }), [c, a, b]);
