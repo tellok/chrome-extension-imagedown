@@ -5,6 +5,7 @@
   const MAX_PIXELS = 24_000_000;
   const MAX_ITEMS = 4000;
   let records = new Map();
+  const history = [];
   let revision = 0;
 
   function absolute(value) {
@@ -59,6 +60,7 @@
     records = new Map();
     const byURL = new Map();
     let previewBytes = 0;
+    let snapshotBytes = 0;
     let urlBytes = 0;
     let truncated = false;
     const add = (value, source, element, extra = {}) => {
@@ -114,7 +116,10 @@
         if (el instanceof HTMLCanvasElement && el.width && el.height) {
           let snapshot = '', preview = '';
           try {
-            snapshot = pixels(el);
+            const data = pixels(el);
+            if (snapshotBytes + data.length <= 32 * 1024 * 1024) {
+              snapshot = data; snapshotBytes += data.length;
+            }
             if (previewBytes < 6 * 1024 * 1024) { preview = pixels(el, true); previewBytes += preview.length; }
           } catch { /* Still show unreadable canvases. */ }
           // Fragment gives each canvas its own stable URL within this scan.
@@ -150,6 +155,10 @@
         add(entry.name, 'resource');
       }
     }
+    // The side panel and expanded tab may be open at once. A new scan must not
+    // immediately invalidate another view's page-only Blob/Canvas references.
+    history.push(records);
+    if (history.length > 3) history.shift();
     return {
       title: document.title, url: location.href, truncated,
       items: [...records.values()].map(({ element, snapshot, ...item }) => item),
@@ -169,13 +178,13 @@
   }
 
   async function read(id) {
-    const record = records.get(id);
+    const record = records.get(id) || history.find(generation => generation.has(id))?.get(id);
     if (!record) return { error: '页面已重新扫描，请刷新图片列表' };
     const { url, element } = record;
     const errors = [];
     try {
       if (record.kind === 'canvas') {
-        if (!record.snapshot) throw new Error('Canvas 受跨域保护或超过读取上限');
+        if (!record.snapshot) throw new Error('Canvas 受跨域保护或超过尺寸 / 快照预算上限');
         return { dataUrl: record.snapshot, method: 'canvas', mime: 'image/png' };
       }
       if (url.startsWith('data:')) {

@@ -173,6 +173,9 @@ def main():
             assert 'error' in denied, 'protected cross-origin image must not pretend to be readable'
             assert 'error' in read(urls[origin + '/missing.png'])
             assert read(urls[other + '/frame-only.png'])['method'] == 'page-cache'
+            # A second open view must not invalidate the first view's Blob reads.
+            panel.evaluate('''async tabId => (await import('./api.js')).scanTab(tabId)''', tab_id)
+            assert {read(item)['method'] for item in blob_items} == {'page-blob', 'decoded-pixels'}
 
             # Conversions use real browser decoders/encoders and retain dimensions.
             for fmt, mime in [('png', 'image/png'), ('jpg', 'image/jpeg'), ('webp', 'image/webp')]:
