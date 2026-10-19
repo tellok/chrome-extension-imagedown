@@ -18,14 +18,18 @@
     <label class="search"><span aria-hidden="true">⌕</span><input id="query" type="search" placeholder="搜索图片地址或描述" aria-label="搜索图片地址或描述"><kbd>⌘ K</kbd></label>
     <details id="filters"><summary>筛选图片 <span id="filter-count"></span><span class="chevron">⌄</span></summary>
       <div class="filter-fields">
-        <label>最小宽度<input id="min-width" type="number" min="0" max="100000" placeholder="不限"><span>px</span></label>
-        <label>最小高度<input id="min-height" type="number" min="0" max="100000" placeholder="不限"><span>px</span></label>
+        <label>最小宽度<input id="min-width" type="number" min="0" max="100000" value="50"><span>px</span></label>
+        <label>最小高度<input id="min-height" type="number" min="0" max="100000" value="50"><span>px</span></label>
+        <label>最小体积<input id="min-size" type="number" min="0" step="0.1" value="2"><span>KiB</span></label>
         <label>图片格式<select id="type"><option value="">全部格式</option><option>jpg</option><option>png</option><option>webp</option><option>gif</option><option>svg</option><option>avif</option><option>bmp</option><option>ico</option><option value="unknown">未知格式</option></select></label>
         <label>发现来源<select id="source"><option value="">全部来源</option><option value="img">页面图片</option><option value="css">CSS 背景 / 遮罩</option><option value="pseudo">伪元素</option><option value="canvas">Canvas</option><option value="svg">内嵌 SVG</option><option value="lazy">懒加载地址</option><option value="srcset">响应式候选</option><option value="resource">已请求资源</option><option value="poster">视频封面</option><option value="link">图片链接</option></select></label>
       </div>
       <label class="check-line"><input id="loaded" type="checkbox">只看页面已解码的图片 / 已渲染的画布</label>
+      <label class="check-line ignored-toggle"><input id="show-ignored" type="checkbox">显示已忽略的图片 <span id="ignored-count"></span></label>
       <button id="reset" class="text-button">清除筛选</button>
-      <p class="hint">尺寸未知的图片会在设置尺寸条件后隐藏。</p>
+      <button id="defaults" class="text-button">恢复默认阈值</button>
+      <p class="hint">阈值自动保存，设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。</p>
+      <p id="ignore-scope" class="hint"></p>
     </details>
     <div class="library-toolbar"><label class="check-line"><input id="select-all" type="checkbox"><span id="visible-count">0 张图片</span></label><div class="toolbar-right"><select id="sort" aria-label="排序"><option value="position">页面顺序</option><option value="area">面积从大到小</option><option value="width">宽度从大到小</option></select><button id="layout" class="icon-button" aria-label="切换为列表布局" title="切换布局">☷</button></div></div>
     <div id="notice" role="status" hidden></div>
@@ -41,7 +45,7 @@
   <template id="card-template">
     <article class="card">
       <div class="image-area"><div class="preview-fallback"><span>▧</span><small>预览不可用<br>仍可尝试下载</small></div><img alt="" loading="lazy" referrerpolicy="no-referrer"><label class="card-check"><input type="checkbox" aria-label="选择图片"></label><span class="type-badge"></span></div>
-      <div class="card-info"><div class="card-meta"><strong class="dimensions"></strong><span class="source-badge"></span></div><p class="image-url"></p><div class="card-bottom"><span class="item-status"></span><button class="single-download" aria-label="下载这张图片" title="下载这张图片">↓</button></div></div>
+      <div class="card-info"><div class="card-meta"><strong class="dimensions"></strong><span class="source-badge"></span></div><div class="size-row"><span class="image-size"></span><span class="ignored-badge" hidden>已忽略</span></div><p class="image-url"></p><div class="card-bottom"><span class="item-status"></span><button class="ignore-image" aria-label="忽略这张图片" title="在此网站忽略这张图片">忽略</button><button class="single-download" aria-label="下载这张图片" title="下载这张图片">↓</button></div></div>
     </article>
   </template>
   <script type="module" src="panel.js"></script>
