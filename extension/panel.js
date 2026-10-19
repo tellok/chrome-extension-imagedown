@@ -336,7 +336,7 @@ $('select-all').addEventListener('change', event => {
 });
 $('layout').addEventListener('click', () => {
   const list = $('gallery').classList.toggle('list');
-  $('layout').textContent = list ? '▦' : '☷';
+  $('layout').dataset.view = list ? 'list' : 'grid';
   $('layout').setAttribute('aria-label', list ? '切换为网格布局' : '切换为列表布局');
 });
 $('refresh').addEventListener('click', async () => {

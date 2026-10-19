@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ImageDown · 页面图片下载",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "发现页面图片，优先读取页面已加载的资源，支持筛选、批量下载和格式转换。",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "scripting", "downloads", "sidePanel", "storage"],

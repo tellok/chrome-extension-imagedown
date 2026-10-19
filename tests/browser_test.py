@@ -214,6 +214,44 @@ def test_preview_retries(context, worker, extension_id, origin, output):
     source.close()
 
 
+def test_notion_layout(panel, output):
+    panel.bring_to_front()
+    panel.locator('#query').fill('')
+    expect(panel.locator('.card')).not_to_have_count(0)
+    panel.locator('#filters').evaluate('(el) => el.open = false')
+    assert panel.locator('.hero-illustration').evaluate('(img) => img.complete && img.naturalWidth > 0')
+    assert panel.locator('.brand .logo').evaluate('(img) => img.complete && img.naturalWidth > 0')
+    for width in (320, 360, 420, 1100):
+        panel.set_viewport_size({'width': width, 'height': 1000})
+        panel.evaluate('scrollTo(0, 0)')
+        panel.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+        expect(panel.locator('header')).to_have_count(1)
+        expect(panel.locator('footer')).to_have_count(1)
+        assert panel.evaluate('document.documentElement.scrollWidth <= innerWidth'), f'Notion UI overflows at {width}px'
+        expect(panel.locator('#download')).to_be_visible()
+        panel.screenshot(path=str(output / f'notion-library-{width}.png'))
+    panel.locator('#layout').click()
+    expect(panel.locator('#layout')).to_have_attribute('data-view', 'list')
+    expect(panel.locator('#layout svg')).to_have_count(2)
+    panel.set_viewport_size({'width': 320, 'height': 1000})
+    panel.evaluate('scrollTo(0, 0)')
+    panel.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+    assert panel.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'List layout overflows at 320px'
+    panel.screenshot(path=str(output / 'notion-list-320.png'))
+    panel.locator('#layout').click()
+    expect(panel.locator('#layout')).to_have_attribute('data-view', 'grid')
+    panel.locator('#query').fill('__no_images_match_this_query__')
+    expect(panel.locator('.card')).to_have_count(0)
+    expect(panel.locator('#empty')).to_be_visible()
+    assert panel.locator('.empty-illustration').evaluate('(img) => img.complete && img.naturalWidth > 0')
+    panel.set_viewport_size({'width': 420, 'height': 1000})
+    panel.evaluate('scrollTo(0, 0)')
+    panel.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+    panel.screenshot(path=str(output / 'notion-empty-420.png'))
+    panel.locator('#query').fill('')
+    expect(panel.locator('.card')).not_to_have_count(0)
+
+
 def main():
     servers = [ThreadingHTTPServer(('127.0.0.1', 0), Handler) for _ in range(2)]
     for index, server in enumerate(servers):
@@ -482,6 +520,8 @@ def main():
             assert panel.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'filter panel overflows'
             assert not errors, errors
             test_preview_retries(context, worker, extension_id, origin, OUTPUT)
+            test_notion_layout(panel, OUTPUT)
+            assert not errors, errors
 
             # A navigated frame must never service an obsolete read by recycled frame ID.
             navigation_items = panel.evaluate('''async tabId => (await (await import('./api.js')).scanTab(tabId)).items''', tab_id)

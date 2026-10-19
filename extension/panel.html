@@ -7,16 +7,28 @@
   <link rel="stylesheet" href="panel.css">
 </head>
 <body>
+  <svg class="icon-defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="icon-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+    <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M6.1 6.1a8 8 0 0 1 13 3M4.9 14.9a8 8 0 0 0 13 3"/></symbol>
+    <symbol id="icon-expand" viewBox="0 0 24 24"><path d="M14 4h6v6m0-6L11 13M9 4H4v16h16v-5"/></symbol>
+    <symbol id="icon-filter" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="white"/><circle cx="15" cy="17" r="2" fill="white"/></symbol>
+    <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="icon-list" viewBox="0 0 24 24"><path d="M9 5h12M9 12h12M9 19h12M3 5h1M3 12h1M3 19h1"/></symbol>
+    <symbol id="icon-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+    <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  </svg>
   <header>
-    <div class="brand"><span class="logo" aria-hidden="true">▧</span><div><h1>ImageDown</h1><p>把页面里的图片带走</p></div></div>
-    <div class="header-actions"><button id="expand" class="icon-button" title="在独立标签页打开" aria-label="在独立标签页打开">↗</button><button id="refresh" class="icon-button" title="重新扫描页面" aria-label="重新扫描页面">↻</button></div>
+    <div class="brand"><img class="logo" src="icons/48.png" alt=""><h1>ImageDown</h1><span class="breadcrumb-separator" aria-hidden="true">/</span><span class="breadcrumb-page">图片库</span></div>
+    <div class="header-actions"><button id="expand" class="icon-button" title="在独立标签页打开" aria-label="在独立标签页打开"><svg class="ui-icon" aria-hidden="true"><use href="#icon-expand"/></svg></button><button id="refresh" class="icon-button" title="重新扫描页面" aria-label="重新扫描页面"><svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"/></svg></button></div>
   </header>
   <main>
     <section class="page-context"><span class="live-dot"></span><div><p id="page-title">选择一个网页开始</p><span id="page-host">点击扩展图标，扫描当前页面</span></div><span id="frame-count" class="pill">就绪</span></section>
-    <section class="intro"><div><span class="eyebrow">PAGE LIBRARY</span><h2>页面图片 <span id="total">0</span></h2></div><span class="local-badge">本地处理</span></section>
-    <p class="strategy">优先读取页面资源 <span>·</span> 预览失败也会保留图片</p>
-    <label class="search"><span aria-hidden="true">⌕</span><input id="query" type="search" placeholder="搜索图片地址或描述" aria-label="搜索图片地址或描述"><kbd>⌘ K</kbd></label>
-    <details id="filters"><summary>筛选图片 <span id="filter-count"></span><span class="chevron">⌄</span></summary>
+    <section class="intro"><div class="heading-copy"><span class="eyebrow"><svg class="ui-icon" aria-hidden="true"><use href="#icon-lock"/></svg>仅在本地处理</span><h2>图片库 <span id="total">0</span></h2></div><img class="hero-illustration" src="assets/collecting-pictures.png" alt="" aria-hidden="true"></section>
+    <p class="strategy">收集、筛选并保存页面中的图片。<br>优先读取页面资源<span>·</span>保留加载失败的图片</p>
+    <label class="search"><svg class="ui-icon" aria-hidden="true"><use href="#icon-search"/></svg><input id="query" type="search" placeholder="搜索图片地址或描述" aria-label="搜索图片地址或描述"><kbd>⌘ K</kbd></label>
+    <details id="filters"><summary><svg class="ui-icon" aria-hidden="true"><use href="#icon-filter"/></svg>筛选图片 <span id="filter-count"></span><span class="chevron"><svg class="ui-icon" aria-hidden="true"><use href="#icon-chevron"/></svg></span></summary>
       <div class="filter-fields">
         <label>最小宽度<input id="min-width" type="number" min="0" max="100000" value="50"><span>px</span></label>
         <label>最小高度<input id="min-height" type="number" min="0" max="100000" value="50"><span>px</span></label>
@@ -31,22 +43,22 @@
       <p class="hint">阈值自动保存，设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。</p>
       <p id="ignore-scope" class="hint"></p>
     </details>
-    <div class="library-toolbar"><label class="check-line"><input id="select-all" type="checkbox"><span id="visible-count">0 张图片</span></label><div class="toolbar-right"><select id="sort" aria-label="排序"><option value="position">页面顺序</option><option value="area">面积从大到小</option><option value="width">宽度从大到小</option></select><button id="layout" class="icon-button" aria-label="切换为列表布局" title="切换布局">☷</button></div></div>
+    <div class="library-toolbar"><label class="check-line"><input id="select-all" type="checkbox"><span id="visible-count">0 张图片</span></label><div class="toolbar-right"><select id="sort" aria-label="排序"><option value="position">页面顺序</option><option value="area">面积从大到小</option><option value="width">宽度从大到小</option></select><button id="layout" class="icon-button" aria-label="切换为列表布局" title="切换布局" data-view="grid"><svg class="ui-icon" aria-hidden="true" data-icon="list"><use href="#icon-list"/></svg><svg class="ui-icon" aria-hidden="true" data-icon="grid"><use href="#icon-grid"/></svg></button></div></div>
     <div id="retry-toolbar" class="retry-toolbar" hidden><button id="retry-failed" title="重试所有已发现且加载失败的图片，包含被筛选隐藏的图片；不自动下载">↻ 重试所有失败图片</button><span id="retry-summary" role="status"></span></div>
     <div id="notice" role="status" hidden></div>
-    <div id="empty" class="empty"><span aria-hidden="true">▧</span><h3>还没有图片</h3><p>打开一个网页，再点击右上角重新扫描。</p></div>
+    <div id="empty" class="empty"><img class="empty-illustration" src="assets/finding-pictures.png" alt="" aria-hidden="true"><h3>还没有图片</h3><p>打开一个网页，再点击右上角重新扫描。</p></div>
     <section id="gallery" class="gallery" aria-label="图片列表"></section>
   </main>
   <footer>
     <div class="selection-row"><span id="selection-count">已选择 0 张</span><button id="copy" class="text-button" disabled>复制链接</button></div>
-    <div class="download-row"><select id="format" aria-label="下载格式"><option value="original">保留原格式</option><option value="png">转为 PNG</option><option value="jpg">转为 JPG</option><option value="webp">转为 WebP</option></select><button id="download" class="primary" disabled>↓ 下载所选图片</button></div>
+    <div class="download-row"><select id="format" aria-label="下载格式"><option value="original">保留原格式</option><option value="png">转为 PNG</option><option value="jpg">转为 JPG</option><option value="webp">转为 WebP</option></select><button id="download" class="primary" disabled><svg class="ui-icon" aria-hidden="true"><use href="#icon-download"/></svg>下载所选图片</button></div>
     <p id="progress" role="status">文件将保存到下载目录的 ImageDown 文件夹</p>
     <p id="conversion-note" class="hint" hidden>格式转换及像素兜底仅保留静态画面；JPG 透明部分填充白色。</p>
   </footer>
   <template id="card-template">
     <article class="card">
-      <div class="image-area"><div class="preview-fallback"><span>▧</span><small>正在加载预览…</small><button class="retry-preview" hidden>↻ 重试加载</button></div><img alt="" loading="lazy" referrerpolicy="no-referrer"><label class="card-check"><input type="checkbox" aria-label="选择图片"></label><span class="type-badge"></span></div>
-      <div class="card-info"><div class="card-meta"><strong class="dimensions"></strong><span class="source-badge"></span></div><div class="size-row"><span class="image-size"></span><span class="ignored-badge" hidden>已忽略</span></div><p class="image-url"></p><div class="card-bottom"><span class="item-status"></span><button class="ignore-image" aria-label="忽略这张图片" title="在此网站忽略这张图片">忽略</button><button class="single-download" aria-label="下载这张图片" title="下载这张图片">↓</button></div></div>
+      <div class="image-area"><div class="preview-fallback"><svg class="ui-icon" aria-hidden="true"><use href="#icon-image"/></svg><small>正在加载预览…</small><button class="retry-preview" hidden>↻ 重试加载</button></div><img alt="" loading="lazy" referrerpolicy="no-referrer"><label class="card-check"><input type="checkbox" aria-label="选择图片"></label><span class="type-badge"></span></div>
+      <div class="card-info"><div class="card-meta"><strong class="dimensions"></strong><span class="source-badge"></span></div><div class="size-row"><span class="image-size"></span><span class="ignored-badge" hidden>已忽略</span></div><p class="image-url"></p><div class="card-bottom"><span class="item-status"></span><button class="ignore-image" aria-label="忽略这张图片" title="在此网站忽略这张图片">忽略</button><button class="single-download" aria-label="下载这张图片" title="下载这张图片"><svg class="ui-icon" aria-hidden="true"><use href="#icon-download"/></svg></button></div></div>
     </article>
   </template>
   <script type="module" src="panel.js"></script>
