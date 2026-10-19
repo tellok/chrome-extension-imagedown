@@ -2,10 +2,11 @@ import { scanTab, downloadImage } from './api.js';
 import { filterImages, imageType, METHOD_LABELS } from './lib.js';
 import { DEFAULT_THRESHOLDS, THRESHOLD_KEYS, normalizeThreshold, siteDomain, ignoreStorageKey, imageSize, formatBytes } from './metadata.js';
 import { loadThresholds, saveThresholds, loadIgnored, setIgnored } from './preferences.js';
+import { loadPreview } from './previews.js';
 
 const $ = id => document.getElementById(id);
 const pinnedId = Number(new URLSearchParams(location.search).get('tab')) || null;
-const state = { tab: null, domain: '', ignored: new Set(), items: [], selected: new Set(), results: new Map(), scanning: false, busy: false, generation: 0, pendingTab: null };
+const state = { tab: null, domain: '', ignored: new Set(), items: [], selected: new Set(), results: new Map(), scanning: false, busy: false, generation: 0, pendingTab: null, retryBatch: null };
 const sourceLabels = { img: '页面图片', src: '图片地址', css: 'CSS', pseudo: '伪元素', canvas: 'Canvas', svg: 'SVG', 'svg-image': 'SVG 图片', lazy: '懒加载', srcset: '响应式', poster: '视频封面', resource: '资源', link: '图片链接' };
 
 function filters() {
@@ -14,6 +15,76 @@ function filters() {
     type: $('type').value, source: $('source').value, loaded: $('loaded').checked, sort: $('sort').value };
 }
 function visible() { return filterImages(state.items, filters(), imageSize); }
+function failedPreviews() { return state.items.filter(item => item.previewStatus === 'error' && (!item.ignored || $('show-ignored').checked)); }
+function previewUI(card, item) {
+  const failed = item.previewStatus === 'error';
+  card.querySelector('img').classList.toggle('failed', failed || !!item.previewPending);
+  const retry = card.querySelector('.retry-preview');
+  retry.hidden = !failed && !item.previewPending;
+  retry.textContent = item.previewPending ? '正在重试…' : '↻ 重试加载';
+  retry.dataset.pending = String(!!item.previewPending);
+  retry.disabled = state.busy || state.scanning || !!item.previewPending || !!state.retryBatch;
+  retry.title = item.previewError || '重新读取并加载这张图片的预览';
+  card.querySelector('.preview-fallback small').textContent = item.previewPending ? '正在重新读取图片…' : failed ? '预览加载失败，仍可尝试下载' : '正在加载预览…';
+}
+function retryUI() {
+  const failed = failedPreviews().length;
+  const available = failedPreviews().some(item => !item.previewPending);
+  const pending = state.items.some(item => item.previewPending);
+  $('retry-toolbar').hidden = !failed && !pending && !state.retryBatch && !$('retry-summary').textContent;
+  $('retry-failed').disabled = state.busy || state.scanning || !!state.retryBatch || !available;
+  $('retry-failed').textContent = state.retryBatch ? '正在重试失败图片…' : `↻ 重试所有失败图片 (${failed})`;
+}
+function releasePreviews() {
+  for (const item of state.items) if (item.retryPreview) URL.revokeObjectURL(item.retryPreview);
+}
+async function retryPreview(item) {
+  if (!state.tab || state.busy || state.scanning || item.previewPending) return null;
+  const generation = state.generation;
+  const tabId = state.tab.id;
+  item.previewPending = true;
+  render();
+  let preview;
+  try {
+    preview = await loadPreview(tabId, item);
+    if (generation !== state.generation) { URL.revokeObjectURL(preview.url); return null; }
+    if (item.retryPreview) URL.revokeObjectURL(item.retryPreview);
+    Object.assign(item, {
+      retryPreview: preview.url, previewStatus: 'ready', previewError: '',
+      width: preview.width, height: preview.height, bytes: preview.bytes, mime: preview.mime,
+      sizeSource: '重试读取的图片数据大小（像素兜底时为 PNG）',
+    });
+    return true;
+  } catch (error) {
+    if (generation !== state.generation) return null;
+    item.previewStatus = 'error';
+    item.previewError = error.message;
+    return false;
+  } finally {
+    item.previewPending = false;
+    if (generation === state.generation) { render(); retryUI(); }
+  }
+}
+async function retryAllPreviews() {
+  if (state.retryBatch || state.busy || state.scanning) return;
+  const items = failedPreviews().filter(item => !item.previewPending);
+  if (!items.length) return;
+  const batch = Symbol('preview-retry');
+  state.retryBatch = batch;
+  let cursor = 0, done = 0, failed = 0;
+  const progress = () => { $('retry-summary').textContent = `成功 ${done} · 失败 ${failed} · 共 ${items.length} 张`; };
+  progress(); render();
+  const worker = async () => {
+    while (state.retryBatch === batch && cursor < items.length) {
+      const result = await retryPreview(items[cursor++]);
+      if (state.retryBatch !== batch) return;
+      if (result === true) done++; else if (result === false) failed++;
+      progress();
+    }
+  };
+  await Promise.all([worker(), worker()]);
+  if (state.retryBatch === batch) { state.retryBatch = null; render(); }
+}
 const thresholdInputs = { width: 'min-width', height: 'min-height', minBytes: 'min-size' };
 function applyThresholds(values) {
   for (const [field, id] of Object.entries(thresholdInputs)) {
@@ -44,19 +115,23 @@ function notice(message, error = false) {
 }
 function selectionUI() {
   const shown = visible();
+  const previewWork = !!state.retryBatch || state.items.some(item => item.previewPending);
   const selectedShown = shown.filter(item => state.selected.has(item.key)).length;
   $('select-all').checked = shown.length > 0 && selectedShown === shown.length;
   $('select-all').indeterminate = selectedShown > 0 && selectedShown < shown.length;
   $('select-all').disabled = state.busy || state.scanning || !shown.length;
   const hiddenSelected = state.selected.size - selectedShown;
   $('selection-count').textContent = `已选择 ${state.selected.size} 张${hiddenSelected ? `（含 ${hiddenSelected} 张被筛选隐藏）` : ''}`;
-  $('download').disabled = state.busy || state.scanning || !state.selected.size;
+  $('download').disabled = state.busy || state.scanning || previewWork || !state.selected.size;
   $('copy').disabled = state.busy || !state.selected.size;
   $('refresh').disabled = state.busy || state.scanning;
-  $('format').disabled = state.busy;
+  $('format').disabled = state.busy || previewWork;
   $('expand').disabled = !state.tab || state.busy;
   for (const input of $('gallery').querySelectorAll('input,button')) input.disabled = state.busy;
   for (const button of $('gallery').querySelectorAll('.ignore-image[data-unavailable]')) button.disabled = true;
+  for (const button of $('gallery').querySelectorAll('.single-download')) button.disabled = state.busy || previewWork;
+  for (const button of $('gallery').querySelectorAll('.retry-preview')) button.disabled = state.busy || state.scanning || !!state.retryBatch || button.dataset.pending === 'true';
+  retryUI();
 }
 
 function updateCard(card, item) {
@@ -80,6 +155,7 @@ function updateCard(card, item) {
   const fileSize = imageSize(item);
   card.querySelector('.image-size').textContent = formatBytes(fileSize.bytes, fileSize.estimated);
   card.querySelector('.image-size').title = `${fileSize.source}${fileSize.bytes != null ? ` · ${fileSize.estimated ? '约 ' : ''}${fileSize.bytes} B` : ''}`;
+  previewUI(card, item);
 }
 
 function render() {
@@ -96,11 +172,20 @@ function render() {
   for (const item of items) {
     const card = $('card-template').content.firstElementChild.cloneNode(true);
     const image = card.querySelector('img');
-    image.src = item.preview || (item.kind === 'canvas' ? '' : item.url);
-    if (item.kind === 'canvas' && !item.preview) image.classList.add('failed');
+    const generation = state.generation;
+    if (item.kind === 'canvas' && !item.preview && !item.retryPreview) item.previewStatus = 'error';
     image.alt = item.alt || '页面图片预览';
-    image.addEventListener('error', () => image.classList.add('failed'));
+    image.addEventListener('error', () => {
+      if (generation !== state.generation || !card.isConnected || item.previewPending) return;
+      item.previewStatus = 'error';
+      item.previewError ||= '图片预览加载失败；点击重试会重新读取页面资源并尝试扩展请求。';
+      previewUI(card, item); retryUI();
+    });
     image.addEventListener('load', () => {
+      if (generation !== state.generation || !card.isConnected || item.previewPending) return;
+      item.previewStatus = 'ready';
+      item.previewError = '';
+      previewUI(card, item); retryUI();
       if (!item.width && !item.preview) {
         item.width = image.naturalWidth; item.height = image.naturalHeight;
         card.querySelector('.dimensions').textContent = `${item.width} × ${item.height}`;
@@ -109,6 +194,7 @@ function render() {
         if (filters().width || filters().height || filters().minBytes || filters().sort !== 'position') scheduleRender();
       }
     });
+    if (item.previewStatus !== 'error' && !item.previewPending) image.src = item.retryPreview || item.preview || item.url;
     card.querySelector('.dimensions').textContent = item.width && item.height ? `${Math.round(item.width)} × ${Math.round(item.height)}` : '尺寸未知';
     card.querySelector('.type-badge').textContent = imageType(item) === 'unknown' ? '?' : imageType(item);
     card.querySelector('.source-badge').textContent = sourceLabels[item.sources[0]] || item.sources[0];
@@ -121,6 +207,11 @@ function render() {
     });
     card.querySelector('.single-download').addEventListener('click', () => void runDownloads([item]));
     card.querySelector('.ignore-image').addEventListener('click', () => void toggleIgnored(item));
+    card.querySelector('.retry-preview').addEventListener('click', () => {
+      if (state.retryBatch) return;
+      $('retry-summary').textContent = '';
+      void retryPreview(item);
+    });
     updateCard(card, item);
     fragment.append(card);
   }
@@ -134,6 +225,9 @@ async function refresh(tab = state.tab) {
   if (!tab) return;
   if (state.busy) { state.pendingTab = tab; return; }
   const generation = ++state.generation;
+  releasePreviews();
+  state.retryBatch = null;
+  $('retry-summary').textContent = '';
   state.tab = tab;
   state.domain = siteDomain(tab.url);
   state.ignored = new Set();
@@ -167,7 +261,7 @@ async function refresh(tab = state.tab) {
 }
 
 async function runDownloads(items) {
-  if (state.busy || !state.tab || !items.length) return;
+  if (state.busy || state.retryBatch || state.items.some(item => item.previewPending) || !state.tab || !items.length) return;
   const tabId = state.tab.id;
   const format = $('format').value;
   state.busy = true;
@@ -249,6 +343,7 @@ $('refresh').addEventListener('click', async () => {
   if (state.tab) { try { await refresh(await chrome.tabs.get(state.tab.id)); } catch (error) { notice(error.message, true); } }
 });
 $('format').addEventListener('change', () => { $('conversion-note').hidden = $('format').value === 'original'; });
+$('retry-failed').addEventListener('click', () => void retryAllPreviews());
 $('download').addEventListener('click', () => void runDownloads(state.items.filter(item => state.selected.has(item.key))));
 $('copy').addEventListener('click', async () => {
   const urls = state.items.filter(item => state.selected.has(item.key) && item.kind !== 'canvas').map(item => item.url);
@@ -279,9 +374,12 @@ chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
 });
 chrome.tabs.onRemoved.addListener(tabId => {
   if (tabId !== state.tab?.id) return;
+  releasePreviews();
+  state.retryBatch = null;
   state.generation++; state.tab = null; state.items = []; state.selected.clear(); state.scanning = false;
   notice('原页面已关闭。请切换到另一个网页。'); render();
 });
+window.addEventListener('pagehide', releasePreviews);
 
 try {
   applyThresholds(await loadThresholds());

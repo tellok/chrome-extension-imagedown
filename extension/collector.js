@@ -184,7 +184,7 @@
     return { dataUrl, method, bytes: blob.size, mime: blob.type };
   }
 
-  async function read(id) {
+  async function read(id, { refresh = false } = {}) {
     const record = records.get(id) || history.find(generation => generation.has(id))?.get(id);
     if (!record) return { error: '页面已重新扫描，请刷新图片列表' };
     const { url, element } = record;
@@ -219,12 +219,12 @@
         } finally { await reader.cancel().catch(() => {}); }
         return new Blob(chunks, { type: response.headers.get('content-type')?.split(';')[0] || 'application/octet-stream' });
       };
-      if (new URL(url).origin === location.origin && !url.startsWith('blob:')) {
+      if (!refresh && new URL(url).origin === location.origin && !url.startsWith('blob:')) {
         try { return await asData(await fetchImage('only-if-cached'), 'page-cache'); }
         catch (error) { errors.push(error.message); }
       }
       // Blob URLs are readable only in their owning page/storage partition.
-      try { return await asData(await fetchImage('force-cache'), url.startsWith('blob:') ? 'page-blob' : 'page-fetch'); }
+      try { return await asData(await fetchImage(refresh ? 'reload' : 'force-cache'), url.startsWith('blob:') ? 'page-blob' : 'page-fetch'); }
       catch (error) { errors.push(error.message); }
       if (element instanceof HTMLImageElement && element.complete && element.naturalWidth &&
           (element.currentSrc || element.src) === url) {

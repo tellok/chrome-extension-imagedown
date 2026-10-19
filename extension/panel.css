@@ -355,6 +355,35 @@ details>.hint {
   font-size:10px;
   line-height:1.6;
 }
+.retry-preview {
+  color:var(--accent);
+  background:#fffffff2;
+  border:1px solid #cfddda;
+  border-radius:6px;
+  padding:6px 10px;
+  font-size:11px;
+}
+.retry-toolbar {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:12px;
+  font-size:11px;
+  color:var(--muted);
+}
+.retry-toolbar[hidden] {
+  display:none;
+}
+#retry-failed {
+  color:var(--accent);
+  border:1px solid #cfddda;
+  background:#fff;
+  border-radius:7px;
+  padding:7px 10px;
+  font-size:11px;
+}
 .card-check {
   position:absolute;
   z-index:2;
