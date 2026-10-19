@@ -98,6 +98,7 @@ async function refresh(tab = state.tab) {
   state.tab = tab;
   state.scanning = true;
   state.items = []; state.selected.clear(); state.results.clear();
+  $('progress').textContent = '文件将保存到下载目录的 ImageDown 文件夹';
   $('page-title').textContent = tab.title || '未命名页面';
   try { $('page-host').textContent = new URL(tab.url).host; } catch { $('page-host').textContent = tab.url || ''; }
   $('frame-count').textContent = '扫描中';
