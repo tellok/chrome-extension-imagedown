@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "ImageTaken · 이미지 다운로더"
+  },
+  "extensionDescription": {
+    "message": "페이지 이미지를 찾아 기존 리소스를 우선 사용하고 필터링, 일괄 다운로드 및 형식 변환합니다."
+  },
+  "actionTitle": {
+    "message": "ImageTaken 열기"
+  }
+}

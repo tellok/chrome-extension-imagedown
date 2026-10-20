@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 import { imageType } from './lib.js';
 
 export const DEFAULT_THRESHOLDS = Object.freeze({ width: 50, height: 50, minBytes: 2048 });
@@ -39,18 +40,18 @@ export function dataURLBytes(url) {
 
 export function imageSize(item) {
   if (Number.isFinite(item.bytes) && item.bytes >= 0) {
-    return { bytes: item.bytes, estimated: false, source: item.sizeSource || '已知文件大小' };
+    return { bytes: item.bytes, estimated: false, source: item.sizeSource || t('已知文件大小') };
   }
   if (item.width > 0 && item.height > 0) {
     // Only a heuristic for compressed file size, never decoded RGBA memory size.
     const ratio = { jpg: 0.25, webp: 0.18, avif: 0.12, gif: 0.5, png: 0.75, bmp: 3 }[imageType(item)] || 0.5;
-    return { bytes: Math.max(1, Math.round(item.width * item.height * ratio)), estimated: true, source: '根据像素尺寸和格式估算，实际压缩文件可能有较大差异' };
+    return { bytes: Math.max(1, Math.round(item.width * item.height * ratio)), estimated: true, source: t('根据像素尺寸和格式估算，实际压缩文件可能有较大差异') };
   }
-  return { bytes: null, estimated: false, source: '无法确定文件大小' };
+  return { bytes: null, estimated: false, source: t('无法确定文件大小') };
 }
 
 export function formatBytes(bytes, estimated = false) {
-  if (!Number.isFinite(bytes) || bytes < 0) return '体积未知';
+  if (!Number.isFinite(bytes) || bytes < 0) return t('体积未知');
   const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
   const index = bytes ? Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024))) : 0;
   const value = bytes / 1024 ** index;

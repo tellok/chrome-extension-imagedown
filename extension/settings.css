@@ -1,0 +1,21 @@
+.settings-page main { max-width: 760px; padding: 32px 24px; }
+.settings-page h2 { font-size: 26px; margin: 0; }
+.settings-intro { color: var(--muted); font-size: 12px; margin: 8px 0 28px; }
+.settings-group { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.settings-group + .settings-group { margin-top: 20px; }
+.settings-group h3 { font-size: 12px; margin: 0; padding: 13px 16px; background: var(--paper); border-bottom: 1px solid var(--border); }
+.setting-row { display: flex; align-items: center; gap: 24px; padding: 18px 16px 8px; cursor: pointer; }
+.setting-row>span { flex: 1; min-width: 0; }
+.setting-row strong { display: block; font-size: 13px; font-weight: 550; }
+.setting-description { display: block; color: var(--muted); font-size: 12px; line-height: 1.8; margin-top: 6px; }
+.setting-row input { appearance: none; flex-shrink: 0; width: 36px; height: 21px; border: 1px solid var(--switch-border); border-radius: 12px; background: var(--switch-off); position: relative; margin: 0; }
+.setting-row input::after { content: ''; position: absolute; width: 15px; height: 15px; top: 2px; left: 2px; border-radius: 50%; background: var(--switch-knob); }
+.setting-row input:checked { background: var(--switch-on); border-color: var(--switch-on); }
+.setting-row input:checked::after { left: 17px; }
+.setting-row input:disabled { opacity: .5; }
+.settings-note { margin: 0; padding: 0 16px 16px; color: var(--muted); font-size: 11px; }
+#settings-status { min-height: 20px; color: var(--muted); font-size: 12px; }
+
+.setting-row select { flex-shrink: 0; max-width: 45%; padding: 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); font-size: 12px; }
+.setting-row[for="theme"], .setting-row[for="language"] { padding-bottom: 18px; }
+

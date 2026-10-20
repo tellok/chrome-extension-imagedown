@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "ImageTaken · 頁面圖片下載"
+  },
+  "extensionDescription": {
+    "message": "發現頁面圖片，優先讀取頁面已載入的資源，支援篩選、批次下載和格式轉換。"
+  },
+  "actionTitle": {
+    "message": "開啟 ImageTaken"
+  }
+}

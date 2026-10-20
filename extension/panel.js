@@ -1,31 +1,108 @@
+import { t } from './i18n.js';
+import { initI18n, bindDocument, localizeDocument, translateRendered } from './i18n.js';
+import { THEME_KEY } from './theme.js';
 import { scanTab, downloadImage } from './api.js';
 import { filterImages, imageType, METHOD_LABELS } from './lib.js';
 import { DEFAULT_THRESHOLDS, THRESHOLD_KEYS, normalizeThreshold, siteDomain, ignoreStorageKey, imageSize, formatBytes } from './metadata.js';
-import { loadThresholds, saveThresholds, loadIgnored, setIgnored, loadXPath, xpathStorageKey, loadExclusions, exclusionsStorageKey } from './preferences.js';
-import { loadPreview } from './previews.js';
+import { loadThresholds, saveThresholds, loadIgnored, setIgnored, loadXPath, xpathStorageKey, loadExclusions, exclusionsStorageKey, loadQuery, saveQuery } from './preferences.js';
+import { loadPreview, previewOrigin } from './previews.js';
+import { bindGallerySelection } from './selection.js';
+import { bindTitleEditor } from './title-editor.js';
+import { loadDirectory, saveDirectory, chooseDirectory, prepareDestination, directoryChanged } from './destination.js';
+import { createBadgeReporter } from './badge.js';
+import { TITLE_CLEANUP_KEY, loadTitleCleanup, READY_FIRST_KEY, loadReadyFirst } from './settings.js';
 
 const $ = id => document.getElementById(id);
 const pinnedId = Number(new URLSearchParams(location.search).get('tab')) || null;
 const state = { tab: null, domain: '', xpath: '', exclusions: '', ignored: new Set(), items: [], selected: new Set(), results: new Map(), scanning: false, busy: false, generation: 0, pendingTab: null, retryBatch: null };
 const sourceLabels = { img: '页面图片', src: '图片地址', css: 'CSS', pseudo: '伪元素', canvas: 'Canvas', svg: 'SVG', 'svg-image': 'SVG 图片', lazy: '懒加载', srcset: '响应式', poster: '视频封面', resource: '资源', link: '图片链接' };
+let directory = null, directoryReady = false, locationBusy = false;
+let lastDownloadId = null;
+let queryRevision = 0;
+let panelTabId = null, sourceLoading = false;
+let readyFirst = false, previewOrderTimer;
+const reportBadge = createBadgeReporter(() => ({
+  tabIds: [...new Set([state.tab?.id, panelTabId].filter(Number.isInteger))],
+  items: visible(), total: state.items.length, scanning: state.scanning || sourceLoading,
+}));
+const titleEditor = bindTitleEditor($('title-editor'), { onChange: updateDestinationUI });
+const cancelSelectionGesture = bindGallerySelection($('gallery'), {
+  selected: state.selected, disabled: () => state.busy || state.scanning, onChange: selectionUI,
+});
+
+function updateDestinationUI() {
+  const location = directory ? directory.name : t('浏览器默认下载位置');
+  $('download-location').textContent = location;
+  $('download-location').title = directory ? t(`已授权目录：{0}（浏览器不提供完整磁盘路径）`, location) : location;
+  $('reset-location').hidden = !directory;
+}
+async function reloadDirectory() {
+  try { directory = await loadDirectory(); directoryReady = true; updateDestinationUI(); selectionUI(); }
+  catch (error) { directoryReady = false; notice(t(`无法读取下载目录设置：{0}`, error.message), true); }
+}
+async function changeDirectory(reset = false) {
+  if (state.busy || locationBusy || !directoryReady) return;
+  locationBusy = true;
+  selectionUI();
+  try {
+    const chosen = reset ? null : await chooseDirectory();
+    await saveDirectory(chosen);
+    directory = chosen;
+    updateDestinationUI();
+    notice('');
+  } catch (error) {
+    if (error.name !== 'AbortError') notice(t(`下载位置未更改：{0}。可在独立标签页中重新选择。`, error.message), true);
+  } finally { locationBusy = false; selectionUI(); }
+}
+$('choose-location').addEventListener('click', () => void changeDirectory());
+$('reset-location').addEventListener('click', () => void changeDirectory(true));
 
 function filters() {
   return { query: $('query').value, width: Math.max(0, +$('min-width').value), height: Math.max(0, +$('min-height').value),
     minBytes: normalizeThreshold($('min-size').value) * 1024, showIgnored: $('show-ignored').checked,
-    type: $('type').value, source: $('source').value, loaded: $('loaded').checked, sort: $('sort').value };
+    type: $('type').value, source: $('source').value, loaded: $('loaded').checked, sort: $('sort').value, readyFirst };
 }
 function visible() { return filterImages(state.items, filters(), imageSize); }
+function schedulePreviewOrder() {
+  if (!readyFirst) return;
+  clearTimeout(previewOrderTimer);
+  previewOrderTimer = setTimeout(() => {
+    if (!readyFirst) return;
+    const gallery = $('gallery');
+    const cards = new Map([...gallery.children].map(card => [card.dataset.key, card]));
+    const ordered = visible().map(item => cards.get(item.key)).filter(Boolean);
+    if (ordered.some((card, index) => gallery.children[index] !== card)) {
+      cancelSelectionGesture();
+      // Move existing nodes so completed previews are not requested again.
+      gallery.append(...ordered);
+    }
+  }, 120);
+}
 function failedPreviews() { return state.items.filter(item => item.previewStatus === 'error' && (!item.ignored || $('show-ignored').checked)); }
 function previewUI(card, item) {
   const failed = item.previewStatus === 'error';
+  card.dataset.previewFailed = String(failed);
+  card.querySelector('input[type=checkbox]').disabled = state.busy || state.scanning || failed;
+  if (failed) {
+    state.selected.delete(item.key);
+    card.querySelector('input[type=checkbox]').checked = false;
+    card.classList.remove('selected');
+  }
+  card.querySelector('.preview-fallback').hidden = item.previewStatus === 'ready' && !item.previewPending;
+  const marker = card.querySelector('.preview-origin');
+  const origin = previewOrigin(item);
+  marker.hidden = item.previewStatus !== 'ready' || !!item.previewPending;
+  marker.textContent = origin.label;
+  marker.dataset.origin = origin.kind;
+  marker.title = origin.detail + t(' 此标记说明预览来源，实际下载会优先读取原文件。');
   card.querySelector('img').classList.toggle('failed', failed || !!item.previewPending);
   const retry = card.querySelector('.retry-preview');
   retry.hidden = !failed && !item.previewPending;
-  retry.textContent = item.previewPending ? '正在重试…' : '↻ 重试加载';
+  retry.textContent = item.previewPending ? t('正在重试…') : t('↻ 重试加载');
   retry.dataset.pending = String(!!item.previewPending);
   retry.disabled = state.busy || state.scanning || !!item.previewPending || !!state.retryBatch;
-  retry.title = item.previewError || '重新读取并加载这张图片的预览';
-  card.querySelector('.preview-fallback small').textContent = item.previewPending ? '正在重新读取图片…' : failed ? '预览加载失败，仍可尝试下载' : '正在加载预览…';
+  retry.title = item.previewError || t('重新读取并加载这张图片的预览');
+  card.querySelector('.preview-fallback small').textContent = item.previewPending ? t('正在重新读取图片…') : failed ? t('预览加载失败，仍可尝试下载') : t('正在加载预览…');
 }
 function retryUI() {
   const failed = failedPreviews().length;
@@ -33,7 +110,7 @@ function retryUI() {
   const pending = state.items.some(item => item.previewPending);
   $('retry-toolbar').hidden = !failed && !pending && !state.retryBatch && !$('retry-summary').textContent;
   $('retry-failed').disabled = state.busy || state.scanning || !!state.retryBatch || !available;
-  $('retry-failed').textContent = state.retryBatch ? '正在重试失败图片…' : `↻ 重试所有失败图片 (${failed})`;
+  $('retry-failed').textContent = state.retryBatch ? t('正在重试失败图片…') : t(`↻ 重试所有失败图片 ({0})`, failed);
 }
 function releasePreviews() {
   for (const item of state.items) if (item.retryPreview) URL.revokeObjectURL(item.retryPreview);
@@ -50,8 +127,12 @@ async function retryPreview(item) {
     if (generation !== state.generation) { URL.revokeObjectURL(preview.url); return null; }
     if (item.retryPreview) URL.revokeObjectURL(item.retryPreview);
     Object.assign(item, {
-      retryPreview: preview.url, previewStatus: 'ready', previewError: '',
-      width: preview.width, height: preview.height, bytes: preview.bytes, mime: preview.mime,
+      retryPreview: preview.url, previewMethod: preview.method, previewStatus: 'ready', previewError: '',
+      width: preview.width, height: preview.height,
+    });
+    // A thumbnail describes the preview, not the source file's format or size.
+    if (preview.method !== 'decoded-pixels') Object.assign(item, {
+      bytes: preview.bytes, mime: preview.mime,
       sizeSource: '重试读取的图片数据大小（像素兜底时为 PNG）',
     });
     return true;
@@ -72,7 +153,7 @@ async function retryAllPreviews() {
   const batch = Symbol('preview-retry');
   state.retryBatch = batch;
   let cursor = 0, done = 0, failed = 0;
-  const progress = () => { $('retry-summary').textContent = `成功 ${done} · 失败 ${failed} · 共 ${items.length} 张`; };
+  const progress = () => { $('retry-summary').textContent = t(`成功 {0} · 失败 {1} · 共 {2} 张`, done, failed, items.length); };
   progress(); render();
   const worker = async () => {
     while (state.retryBatch === batch && cursor < items.length) {
@@ -106,31 +187,42 @@ async function toggleIgnored(item) {
     // storage.onChanged also synchronizes other open panels.
     state.ignored = await loadIgnored(state.domain);
     applyIgnored(); render();
-  } catch (error) { notice(`忽略规则保存失败：${error.message}`, true); }
+  } catch (error) { notice(t(`忽略规则保存失败：{0}`, error.message), true); }
 }
 function notice(message, error = false) {
   $('notice').textContent = message;
   $('notice').hidden = !message;
   $('notice').classList.toggle('error', error);
 }
+function selectAllUI(shown = visible()) {
+  const selectedShown = shown.filter(item => state.selected.has(item.key)).length;
+  const selectable = shown.filter(item => item.previewStatus === 'ready' && !item.previewPending);
+  const allSelected = selectable.length > 0 && selectable.every(item => state.selected.has(item.key));
+  $('select-all').checked = allSelected;
+  $('select-all').indeterminate = selectedShown > 0 && !allSelected;
+  $('select-all').disabled = state.busy || state.scanning || (!selectable.length && !selectedShown);
+  $('select-all').title = t('全选已成功加载预览的图片；取消时清除当前列表的选择');
+  return selectedShown;
+}
 function selectionUI() {
+  for (const item of state.items) if (item.previewStatus === 'error') state.selected.delete(item.key);
   const shown = visible();
   const previewWork = !!state.retryBatch || state.items.some(item => item.previewPending);
-  const selectedShown = shown.filter(item => state.selected.has(item.key)).length;
-  $('select-all').checked = shown.length > 0 && selectedShown === shown.length;
-  $('select-all').indeterminate = selectedShown > 0 && selectedShown < shown.length;
-  $('select-all').disabled = state.busy || state.scanning || !shown.length;
+  const selectedShown = selectAllUI(shown);
   const hiddenSelected = state.selected.size - selectedShown;
-  $('selection-count').textContent = `已选择 ${state.selected.size} 张${hiddenSelected ? `（含 ${hiddenSelected} 张被筛选隐藏）` : ''}`;
-  $('download').disabled = state.busy || state.scanning || previewWork || !state.selected.size;
-  $('copy').disabled = state.busy || !state.selected.size;
+  $('selection-count').textContent = t(`已选择 {0} 张{1}`, state.selected.size, hiddenSelected ? t(`（含 {0} 张被筛选隐藏）`, hiddenSelected) : '');
+  $('selection-count').hidden = state.selected.size === 0;
+  $('download').disabled = state.busy || state.scanning || previewWork || locationBusy || !directoryReady || !state.selected.size;
   $('refresh').disabled = state.busy || state.scanning;
   $('format').disabled = state.busy || previewWork;
   $('expand').disabled = !state.tab || state.busy;
+  titleEditor.setDisabled(state.busy || state.scanning || !state.tab);
+  for (const id of ['choose-location', 'reset-location']) $(id).disabled = state.busy || locationBusy || !directoryReady;
   for (const id of ['apply-xpath', 'clear-xpath', 'xpath', 'excluded-selectors']) $(id).disabled = state.busy || state.scanning || !state.domain;
   for (const input of $('gallery').querySelectorAll('input,button')) input.disabled = state.busy;
+  for (const card of $('gallery').children) card.querySelector('input[type=checkbox]').disabled = state.busy || state.scanning || card.dataset.previewFailed === 'true';
   for (const button of $('gallery').querySelectorAll('.ignore-image[data-unavailable]')) button.disabled = true;
-  for (const button of $('gallery').querySelectorAll('.single-download')) button.disabled = state.busy || previewWork;
+  for (const button of $('gallery').querySelectorAll('.single-download')) button.disabled = state.busy || previewWork || locationBusy || !directoryReady;
   for (const button of $('gallery').querySelectorAll('.retry-preview')) button.disabled = state.busy || state.scanning || !!state.retryBatch || button.dataset.pending === 'true';
   retryUI();
 }
@@ -138,7 +230,7 @@ function selectionUI() {
 function updateCard(card, item) {
   const result = state.results.get(item.key);
   const status = card.querySelector('.item-status');
-  const text = result?.error ? '下载失败 · 可重试' : result?.pending ? '正在读取 / 下载…' : result?.method ? METHOD_LABELS[result.method] : item.loaded ? '页面已加载' : '候选资源';
+  const text = result?.misplaced ? t('已下载 · 目录异常') : result?.error ? t('下载失败 · 可重试') : result?.pending ? t('正在读取 / 下载…') : result?.skipped ? t('内容相同 · 已跳过') : result?.method ? t(METHOD_LABELS[result.method]) : item.loaded ? t('页面已加载') : t('候选资源');
   const size = result?.bytes ? formatBytes(result.bytes) : '';
   const conversion = result?.format && result.format !== 'original' ? ` → ${result.format.toUpperCase()}` : '';
   status.textContent = `${text}${conversion}${size ? ` · ${size}` : ''}`;
@@ -149,44 +241,59 @@ function updateCard(card, item) {
   card.classList.toggle('ignored', item.ignored);
   card.querySelector('.ignored-badge').hidden = !item.ignored;
   const ignore = card.querySelector('.ignore-image');
-  ignore.textContent = item.ignored ? '取消忽略' : '忽略';
-  ignore.setAttribute('aria-label', item.ignored ? '取消忽略这张图片' : '忽略这张图片');
-  ignore.title = item.ignoreHash ? `${item.ignored ? '取消' : '保存'} ${state.domain} 下的图片忽略规则` : '无法取得稳定的图片元数据，暂不能忽略';
+  ignore.textContent = item.ignored ? t('取消忽略') : t('忽略');
+  ignore.setAttribute('aria-label', item.ignored ? t('取消忽略这张图片') : t('忽略这张图片'));
+  ignore.title = item.ignoreHash ? t(`{0} {1} 下的图片忽略规则`, item.ignored ? t('取消') : t('保存'), state.domain) : t('无法取得稳定的图片元数据，暂不能忽略');
   if (!item.ignoreHash) ignore.dataset.unavailable = '';
   const fileSize = imageSize(item);
   card.querySelector('.image-size').textContent = formatBytes(fileSize.bytes, fileSize.estimated);
-  card.querySelector('.image-size').title = `${fileSize.source}${fileSize.bytes != null ? ` · ${fileSize.estimated ? '约 ' : ''}${fileSize.bytes} B` : ''}`;
+  card.querySelector('.image-size').title = `${t(fileSize.source)}${fileSize.bytes != null ? ` · ${fileSize.estimated ? t('约 ') : ''}${fileSize.bytes} B` : ''}`;
   previewUI(card, item);
 }
 
 function render() {
+  cancelSelectionGesture();
+  reportBadge();
+  $('site-rules-count').textContent = [state.xpath && t('XPath 范围'), state.exclusions && t('CSS 排除')].filter(Boolean).join(' · ') || t('未启用');
+  $('ignore-scope').textContent = state.domain ? t(`忽略规则仅应用于 {0} 的所有路径（不区分协议和端口）。`, state.domain) : '';
+  const layoutLabel = $('gallery').classList.contains('list') ? t('切换为网格布局') : t('切换为列表布局');
+  $('layout').setAttribute('aria-label', layoutLabel);
+  $('layout').title = layoutLabel;
+  $('active-rule-domain').textContent = state.domain ? t(`{0} · 已保存的规则；可在页面上方修改。`, state.domain) : t('当前页面未配置网站过滤规则。');
+  for (const [id, value] of [['active-xpath', state.xpath], ['active-css', state.exclusions]]) {
+    $(id).textContent = value || t('未配置');
+    $(id).classList.toggle('unconfigured', !value);
+  }
   const items = visible();
   $('total').textContent = state.items.length;
-  $('visible-count').textContent = `${items.length} 张图片`;
+  $('visible-count').textContent = t(`{0} 张图片`, items.length);
   const f = filters();
   const count = [f.width, f.height, f.minBytes, f.type, f.source, f.loaded, f.showIgnored].filter(Boolean).length;
-  $('filter-count').textContent = count ? `${count} 项` : '';
+  $('filter-count').textContent = count ? t(`{0} 项`, count) : '';
   $('empty').hidden = items.length > 0;
-  $('empty').querySelector('h3').textContent = state.scanning ? '正在扫描页面…' : state.items.length ? '没有符合条件的图片' : '还没有图片';
-  $('empty').querySelector('p').textContent = state.items.length ? '调整筛选条件，或清除筛选后查看。' : '滚动页面让懒加载图片出现，再点击右上角重新扫描。';
+  $('empty').querySelector('h3').textContent = state.scanning ? t('正在扫描页面…') : state.items.length ? t('没有符合条件的图片') : t('还没有图片');
+  $('empty').querySelector('p').textContent = state.items.length ? t('调整筛选条件，或清除筛选后查看。') : t('滚动页面让懒加载图片出现，再点击右上角重新扫描。');
   const fragment = document.createDocumentFragment();
   for (const item of items) {
     const card = $('card-template').content.firstElementChild.cloneNode(true);
+    card.dataset.key = item.key;
     const image = card.querySelector('img');
     const generation = state.generation;
     if (item.kind === 'canvas' && !item.preview && !item.retryPreview) item.previewStatus = 'error';
-    image.alt = item.alt || '页面图片预览';
+    image.alt = item.alt || t('页面图片预览');
     image.addEventListener('error', () => {
       if (generation !== state.generation || !card.isConnected || item.previewPending) return;
       item.previewStatus = 'error';
-      item.previewError ||= '图片预览加载失败；点击重试会重新读取页面资源并尝试扩展请求。';
-      previewUI(card, item); retryUI();
+      schedulePreviewOrder();
+      item.previewError ||= t('图片预览加载失败；点击重试会重新读取页面资源并尝试扩展请求。');
+      previewUI(card, item); selectionUI(); reportBadge();
     });
     image.addEventListener('load', () => {
       if (generation !== state.generation || !card.isConnected || item.previewPending) return;
       item.previewStatus = 'ready';
+      schedulePreviewOrder();
       item.previewError = '';
-      previewUI(card, item); retryUI();
+      previewUI(card, item); selectionUI(); reportBadge();
       if (!item.width && !item.preview) {
         item.width = image.naturalWidth; item.height = image.naturalHeight;
         card.querySelector('.dimensions').textContent = `${item.width} × ${item.height}`;
@@ -196,14 +303,14 @@ function render() {
       }
     });
     if (item.previewStatus !== 'error' && !item.previewPending) image.src = item.retryPreview || item.preview || item.url;
-    card.querySelector('.dimensions').textContent = item.width && item.height ? `${Math.round(item.width)} × ${Math.round(item.height)}` : '尺寸未知';
+    card.querySelector('.dimensions').textContent = item.width && item.height ? `${Math.round(item.width)} × ${Math.round(item.height)}` : t('尺寸未知');
     card.querySelector('.type-badge').textContent = imageType(item) === 'unknown' ? '?' : imageType(item);
-    card.querySelector('.source-badge').textContent = sourceLabels[item.sources[0]] || item.sources[0];
-    card.querySelector('.source-badge').title = item.sources.map(s => sourceLabels[s] || s).join(' / ');
-    card.querySelector('.image-url').textContent = /^(data:|blob:)/.test(item.url) ? `${item.url.split(':')[0]}: 页面内嵌资源` : item.url;
+    card.querySelector('.source-badge').textContent = t(sourceLabels[item.sources[0]] || item.sources[0]);
+    card.querySelector('.source-badge').title = item.sources.map(s => t(sourceLabels[s] || s)).join(' / ');
+    card.querySelector('.image-url').textContent = /^(data:|blob:)/.test(item.url) ? t(`{0}: 页面内嵌资源`, item.url.split(':')[0]) : item.url;
     card.querySelector('.image-url').title = item.url.slice(0, 2000);
     card.querySelector('input').addEventListener('change', event => {
-      if (event.target.checked) state.selected.add(item.key); else state.selected.delete(item.key);
+      if (event.target.checked && item.previewStatus !== 'error') state.selected.add(item.key); else state.selected.delete(item.key);
       updateCard(card, item); selectionUI();
     });
     card.querySelector('.single-download').addEventListener('click', () => void runDownloads([item]));
@@ -230,55 +337,72 @@ async function refresh(tab = state.tab) {
   state.retryBatch = null;
   $('retry-summary').textContent = '';
   state.tab = tab;
-  state.domain = siteDomain(tab.url);
+  sourceLoading = false;
+  const domain = siteDomain(tab.url);
+  if (domain !== state.domain) { state.xpath = ''; state.exclusions = ''; $('query').value = ''; queryRevision++; }
+  state.domain = domain;
+  const queryVersion = queryRevision;
   state.ignored = new Set();
   state.scanning = true;
   state.items = []; state.selected.clear(); state.results.clear();
   $('ignored-count').textContent = '(0)';
-  $('ignore-scope').textContent = state.domain ? `忽略规则仅应用于 ${state.domain} 的所有路径（不区分协议和端口）。` : '';
-  $('progress').textContent = '文件将保存到下载目录的 ImageTaken 文件夹';
-  $('page-title').textContent = tab.title || '未命名页面';
+  $('ignore-scope').textContent = state.domain ? t(`忽略规则仅应用于 {0} 的所有路径（不区分协议和端口）。`, state.domain) : '';
+  $('progress').textContent = t('下载时自动创建标题文件夹');
+  titleEditor.setPage(tab);
   try { $('page-host').textContent = new URL(tab.url).host; } catch { $('page-host').textContent = tab.url || ''; }
-  $('frame-count').textContent = '扫描中';
+  delete document.querySelector('.page-context').dataset.frames;
   notice(''); render();
   try {
-    if (!/^https?:/.test(tab.url || '')) throw new Error('请切换到普通 HTTP / HTTPS 网页。浏览器内部页、商店页及 PDF 阅读器可能不允许扩展访问。');
-    const [xpath, exclusions] = await Promise.all([loadXPath(state.domain), loadExclusions(state.domain)]);
+    if (!/^https?:/.test(tab.url || '')) throw new Error(t('请切换到普通 HTTP / HTTPS 网页。浏览器内部页、商店页及 PDF 阅读器可能不允许扩展访问。'));
+    const [xpath, exclusions, query] = await Promise.all([loadXPath(state.domain), loadExclusions(state.domain), loadQuery(state.domain)]);
     if (generation !== state.generation) return;
+    if (queryRevision === queryVersion) $('query').value = query;
     state.xpath = xpath; state.exclusions = exclusions;
-    $('site-rules-count').textContent = [xpath && 'XPath 范围', exclusions && 'CSS 排除'].filter(Boolean).join(' · ') || '未启用';
+    $('site-rules-count').textContent = [xpath && t('XPath 范围'), exclusions && t('CSS 排除')].filter(Boolean).join(' · ') || t('未启用');
     $('xpath').value = xpath; $('excluded-selectors').value = exclusions;
     $('xpath-status').classList.remove('error');
-    $('xpath-status').textContent = `规则应用于 ${state.domain} 的所有路径（不区分协议和端口）。`;
+    $('xpath-status').textContent = t(`规则应用于 {0} 的所有路径（不区分协议和端口）。`, state.domain);
     const result = await scanTab(tab.id, xpath, exclusions);
     const ignored = await loadIgnored(siteDomain(tab.url));
     if (generation !== state.generation) return;
     state.items = result.items;
     state.ignored = ignored;
     applyIgnored();
-    $('frame-count').textContent = `${result.frames} 个框架`;
-    if (xpath) $('xpath-status').textContent = `${state.domain} · XPath 匹配 ${result.matchedRoots} 个节点 · 提取 ${result.items.length} 张图片`;
-    if (xpath && !result.matchedRoots) notice('XPath 未匹配任何节点。请检查路径或等待页面内容加载后重新扫描。');
-    else if (result.truncated) notice('图片过多：已达到单个框架 4000 个地址或 12 MiB 地址数据的上限，部分图片未列出。');
-    else if (!result.items.length) notice('尚未发现图片。请先滚动或展开页面内容，然后重新扫描；部分受保护的框架可能无法访问。');
+    document.querySelector('.page-context').dataset.frames = String(result.frames);
+    if (xpath) $('xpath-status').textContent = t(`{0} · XPath 匹配 {1} 个节点 · 提取 {2} 张图片`, state.domain, result.matchedRoots, result.items.length);
+    if (xpath && !result.matchedRoots) notice(t('XPath 未匹配任何节点。请检查路径或等待页面内容加载后重新扫描。'));
+    else if (result.truncated) notice(t('图片过多：已达到单个框架 4000 个地址或 12 MiB 地址数据的上限，部分图片未列出。'));
+    else if (!result.items.length) notice(t('尚未发现图片。请先滚动或展开页面内容，然后重新扫描；部分受保护的框架可能无法访问。'));
   } catch (error) {
     if (generation !== state.generation) return;
-    $('frame-count').textContent = '无法扫描';
     $('xpath-status').textContent = error.message;
     $('xpath-status').classList.add('error');
-    notice(`扫描失败：${error.message}`, true);
+    notice(t(`扫描失败：{0}`, error.message), true);
   } finally {
     if (generation === state.generation) { state.scanning = false; render(); }
   }
 }
 
 async function runDownloads(items) {
-  if (state.busy || state.retryBatch || state.items.some(item => item.previewPending) || !state.tab || !items.length) return;
+  if (state.busy || state.scanning || locationBusy || !directoryReady || state.retryBatch || state.items.some(item => item.previewPending) || !state.tab || !items.length) return;
+  titleEditor.commit();
   const tabId = state.tab.id;
   const format = $('format').value;
+  const root = directory;
+  const title = titleEditor.value;
+  lastDownloadId = null;
+  $('show-download').hidden = true;
   state.busy = true;
-  let done = 0, failed = 0, cursor = 0;
+  let done = 0, skipped = 0, failed = 0, misplaced = 0, cursor = 0;
   notice(''); selectionUI();
+  let destination;
+  try { destination = await prepareDestination(root, title); }
+  catch (error) {
+    state.busy = false; selectionUI();
+    notice(t(`无法准备下载目录：{0}。请重新选择目录或恢复默认位置。`, error.message), true);
+    if (state.pendingTab) { const tab = state.pendingTab; state.pendingTab = null; await refresh(tab); }
+    return;
+  }
   // Two concurrent images bound memory and avoid flooding sites with requests.
   const worker = async () => {
     while (cursor < items.length) {
@@ -286,25 +410,32 @@ async function runDownloads(items) {
       state.results.set(item.key, { pending: true });
       render();
       try {
-        const result = await downloadImage(tabId, item, item.order, format);
+        const result = await downloadImage(tabId, item, item.order, format, destination);
+        if (Number.isInteger(result.downloadId)) lastDownloadId = result.downloadId;
         const bytes = result.sourceBytes ?? (format === 'original' ? result.bytes : null);
         if (bytes >= 0 && bytes != null) { item.bytes = bytes; item.sizeSource = '实际读取的源图片数据大小（像素兜底时为 PNG）'; }
         if (result.sourceMime) item.mime = result.sourceMime;
         else if (result.mime && format === 'original') item.mime = result.mime;
-        state.results.set(item.key, result); done++;
+        state.results.set(item.key, result);
+        if (result.skipped) skipped++; else done++;
       } catch (error) {
-        state.results.set(item.key, { error: error.message }); failed++;
+        if (Number.isInteger(error.downloadId)) lastDownloadId = error.downloadId;
+        if (error.actualPath) misplaced++;
+        state.results.set(item.key, { error: error.message, misplaced: !!error.actualPath }); failed++;
       }
-      $('progress').textContent = `已完成 ${done} / ${items.length}${failed ? ` · 失败 ${failed}` : ''} · 下载期间请保持此面板打开`;
+      $('progress').textContent = t(`已处理 {0} / {1} · 新保存 {2}{3}{4} · 下载期间请保持此面板打开`, done + skipped + failed, items.length, done, skipped ? t(` · 跳过 {0}`, skipped) : '', failed ? t(` · 失败 {0}`, failed) : '');
       render();
+      $('show-download').hidden = !Number.isInteger(lastDownloadId);
     }
   };
-  $('progress').textContent = `正在下载 ${items.length} 张图片，请保持面板打开…`;
+  $('progress').textContent = t(`正在下载 {0} 张图片，请保持面板打开…`, items.length);
   await Promise.all([worker(), worker()]);
   state.busy = false;
   selectionUI();
-  if (failed) notice(`${done} 张下载完成，${failed} 张失败。悬停失败标记可查看原因；可单独重试。`, true);
-  else notice(`${done} 张图片已下载到 ImageTaken 文件夹。`);
+  if (misplaced) notice(t(`{0} 张按配置保存，{1} 张已下载但目录被改写{2}。点击「打开下载位置」查看实际文件；可选择本地目录后重试。`, done, misplaced, failed > misplaced ? t(`，另有 {0} 张下载失败`, failed - misplaced) : ''), true);
+  else if (failed) notice(t(`{0} 张下载完成，{1} 张失败。悬停失败标记可查看原因；可单独重试。`, done, failed), true);
+  else if (skipped) notice(t(`{0} 张图片已下载到「{1}」文件夹，跳过 {2} 张内容相同的图片。`, done, destination.folder, skipped));
+  else notice(t(`{0} 张图片已下载到「{1}」文件夹。`, done, destination.folder));
   if (state.pendingTab) { const tab = state.pendingTab; state.pendingTab = null; await refresh(tab); }
 }
 
@@ -322,24 +453,31 @@ async function applySiteRules(clear = false) {
     await chrome.storage.local.set({ [xpathStorageKey(domain)]: xpath, [exclusionsStorageKey(domain)]: exclusions });
     if (state.domain === domain) await refresh(tab);
   } catch (error) {
-    $('xpath-status').textContent = `网站规则未保存：${error.message}`;
+    $('xpath-status').textContent = t(`网站规则未保存：{0}`, error.message);
     $('xpath-status').classList.add('error');
   }
 }
 $('apply-xpath').addEventListener('click', () => void applySiteRules());
 $('clear-xpath').addEventListener('click', () => void applySiteRules(true));
 
-for (const id of ['query', 'min-width', 'min-height', 'min-size']) $(id).addEventListener('input', scheduleRender);
+for (const id of ['min-width', 'min-height', 'min-size']) $(id).addEventListener('input', scheduleRender);
+$('query').addEventListener('input', () => {
+  queryRevision++;
+  void saveQuery(state.domain, $('query').value).catch(error => notice(t(`搜索内容保存失败：{0}`, error.message), true));
+  scheduleRender();
+});
 for (const [field, id] of Object.entries(thresholdInputs)) {
   $(id).addEventListener('input', () => {
     const value = normalizeThreshold($(id).value) * (field === 'minBytes' ? 1024 : 1);
-    void saveThresholds({ [field]: value }).catch(error => notice(`筛选设置保存失败：${error.message}`, true));
+    void saveThresholds({ [field]: value }).catch(error => notice(t(`筛选设置保存失败：{0}`, error.message), true));
   });
 }
 for (const id of ['type', 'source', 'loaded', 'sort', 'show-ignored']) $(id).addEventListener('change', render);
 $('reset').addEventListener('click', () => {
   for (const id of ['query', 'min-width', 'min-height', 'min-size', 'type', 'source']) $(id).value = '';
   $('loaded').checked = false; $('show-ignored').checked = false; render();
+  queryRevision++;
+  void saveQuery(state.domain, '').catch(error => notice(t(`搜索内容清除失败：{0}`, error.message), true));
   void saveThresholds({ width: 0, height: 0, minBytes: 0 }).catch(error => notice(error.message, true));
 });
 $('defaults').addEventListener('click', () => {
@@ -349,6 +487,12 @@ $('defaults').addEventListener('click', () => {
 });
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
+  if (changes[TITLE_CLEANUP_KEY]) titleEditor.setCleanup(changes[TITLE_CLEANUP_KEY].newValue === true);
+  if (changes[READY_FIRST_KEY]) readyFirst = changes[READY_FIRST_KEY].newValue === true;
+  // Search history is restored on scan/open. Saving it must not interrupt a
+  // gesture or replace another panel's current, possibly unfinished search.
+  if (Object.keys(changes).every(key => key.startsWith('image-query:v1:') || key === THEME_KEY)) return;
+  if (directoryChanged(changes)) { void reloadDirectory(); return; }
   for (const [field, key] of Object.entries(THRESHOLD_KEYS)) {
     if (changes[key] && document.activeElement !== $(thresholdInputs[field])) {
       applyThresholds({ [field]: normalizeThreshold(changes[key].newValue ?? DEFAULT_THRESHOLDS[field], DEFAULT_THRESHOLDS[field]) });
@@ -367,14 +511,15 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 $('select-all').addEventListener('change', event => {
   for (const item of visible()) {
-    if (event.target.checked) state.selected.add(item.key); else state.selected.delete(item.key);
+    if (event.target.checked && item.previewStatus === 'ready' && !item.previewPending) state.selected.add(item.key);
+    else state.selected.delete(item.key);
   }
   render();
 });
 $('layout').addEventListener('click', () => {
   const list = $('gallery').classList.toggle('list');
   $('layout').dataset.view = list ? 'list' : 'grid';
-  $('layout').setAttribute('aria-label', list ? '切换为网格布局' : '切换为列表布局');
+  $('layout').setAttribute('aria-label', list ? t('切换为网格布局') : t('切换为列表布局'));
 });
 $('refresh').addEventListener('click', async () => {
   if (state.tab) { try { await refresh(await chrome.tabs.get(state.tab.id)); } catch (error) { notice(error.message, true); } }
@@ -382,17 +527,13 @@ $('refresh').addEventListener('click', async () => {
 $('format').addEventListener('change', () => { $('conversion-note').hidden = $('format').value === 'original'; });
 $('retry-failed').addEventListener('click', () => void retryAllPreviews());
 $('download').addEventListener('click', () => void runDownloads(state.items.filter(item => state.selected.has(item.key))));
-$('copy').addEventListener('click', async () => {
-  const urls = state.items.filter(item => state.selected.has(item.key) && item.kind !== 'canvas').map(item => item.url);
-  try {
-    if (!urls.length) throw new Error('Canvas 是页面快照，没有可复制的原始链接');
-    await navigator.clipboard.writeText(urls.join('\n'));
-    notice(`已复制 ${urls.length} 个链接${urls.length < state.selected.size ? '（Canvas 快照无链接，已跳过）' : ''}。`);
-  } catch (error) { notice(error.message, true); }
+$('show-download').addEventListener('click', () => {
+  if (Number.isInteger(lastDownloadId)) chrome.downloads.show(lastDownloadId);
 });
 $('expand').addEventListener('click', () => {
   if (state.tab) void chrome.tabs.create({ url: chrome.runtime.getURL(`panel.html?tab=${state.tab.id}`) });
 });
+$('settings').addEventListener('click', () => void chrome.runtime.openOptionsPage());
 document.addEventListener('keydown', event => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); $('query').focus(); }
 });
@@ -407,18 +548,41 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   } catch (error) { notice(error.message, true); }
 });
 chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
-  if (tabId === state.tab?.id && change.status === 'complete') void refresh(tab);
+  if (tabId !== state.tab?.id) return;
+  if (change.status === 'loading') { sourceLoading = true; reportBadge(); }
+  if (change.status === 'complete') void refresh(tab);
 });
 chrome.tabs.onRemoved.addListener(tabId => {
   if (tabId !== state.tab?.id) return;
   releasePreviews();
   state.retryBatch = null;
-  state.generation++; state.tab = null; state.items = []; state.selected.clear(); state.scanning = false;
-  notice('原页面已关闭。请切换到另一个网页。'); render();
+  state.generation++; state.tab = null; state.domain = ''; state.xpath = ''; state.exclusions = ''; state.items = []; state.selected.clear(); state.scanning = false;
+  sourceLoading = false;
+  $('query').value = ''; queryRevision++;
+  notice(t('原页面已关闭。请切换到另一个网页。')); render();
 });
 window.addEventListener('pagehide', releasePreviews);
 
+let localizationReady = false;
+window.addEventListener('imagetaken-languagechange', event => {
+  if (!localizationReady) return;
+  localizeDocument();
+  for (const id of ['notice', 'progress', 'retry-summary', 'xpath-status']) {
+    $(id).textContent = translateRendered($(id).textContent, event.previousLanguage);
+  }
+  for (const item of state.items) if (item.previewError) item.previewError = translateRendered(item.previewError, event.previousLanguage);
+  for (const result of state.results.values()) if (result.error) result.error = translateRendered(result.error, event.previousLanguage);
+  titleEditor.localize();
+  updateDestinationUI(); render();
+});
+
 try {
+  await initI18n();
+  bindDocument(); localizationReady = true;
+  titleEditor.setCleanup(await loadTitleCleanup());
+  readyFirst = await loadReadyFirst();
+  if (pinnedId) panelTabId = (await chrome.tabs.getCurrent())?.id ?? null;
+  await reloadDirectory();
   applyThresholds(await loadThresholds());
   const tab = pinnedId ? await chrome.tabs.get(pinnedId) : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
   await refresh(tab);

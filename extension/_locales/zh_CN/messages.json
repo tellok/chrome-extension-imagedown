@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "ImageTaken · 页面图片下载"
+  },
+  "extensionDescription": {
+    "message": "发现页面图片，优先读取页面已加载的资源，支持筛选、批量下载和格式转换。"
+  },
+  "actionTitle": {
+    "message": "打开 ImageTaken"
+  }
+}

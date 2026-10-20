@@ -1,4 +1,22 @@
+import { t } from './i18n.js';
 import { DEFAULT_THRESHOLDS, THRESHOLD_KEYS, normalizeThreshold, ignoreStorageKey } from './metadata.js';
+
+let queryWrites = Promise.resolve();
+export function queryStorageKey(domain) { return `image-query:v1:${domain}`; }
+export async function loadQuery(domain) {
+  if (!domain) return '';
+  await queryWrites;
+  const key = queryStorageKey(domain);
+  const value = (await chrome.storage.local.get(key))[key];
+  return typeof value === 'string' ? value : '';
+}
+export function saveQuery(domain, value) {
+  if (!domain) return Promise.resolve();
+  const key = queryStorageKey(domain);
+  const operation = queryWrites.then(() => value ? chrome.storage.local.set({ [key]: value }) : chrome.storage.local.remove(key));
+  queryWrites = operation.catch(() => {});
+  return operation;
+}
 
 export async function loadThresholds() {
   const values = await chrome.storage.local.get(Object.values(THRESHOLD_KEYS));
@@ -20,7 +38,7 @@ export async function loadIgnored(domain) {
 
 export async function setIgnored(domain, hash, ignored) {
   const response = await chrome.runtime.sendMessage({ type: 'set-ignored', domain, hash, ignored });
-  if (!response?.ok) throw new Error(response?.error || '无法保存忽略规则');
+  if (!response?.ok) throw new Error(response?.error || t('无法保存忽略规则'));
 }
 
 export function xpathStorageKey(domain) { return `xpath:v1:${domain}`; }

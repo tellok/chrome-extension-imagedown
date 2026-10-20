@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "ImageTaken · Image downloader"
+  },
+  "extensionDescription": {
+    "message": "Find page images, reuse loaded resources, filter, download in batches and convert formats."
+  },
+  "actionTitle": {
+    "message": "Open ImageTaken"
+  }
+}

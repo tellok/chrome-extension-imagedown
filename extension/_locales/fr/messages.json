@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "ImageTaken · Téléchargement d’images"
+  },
+  "extensionDescription": {
+    "message": "Trouvez les images des pages, réutilisez les ressources, filtrez, téléchargez par lots et convertissez les formats."
+  },
+  "actionTitle": {
+    "message": "Ouvrir ImageTaken"
+  }
+}

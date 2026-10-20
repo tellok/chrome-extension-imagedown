@@ -1,5 +1,9 @@
+import { t, translatedSource } from './i18n.js';
 import { filename } from './lib.js';
 import { prepareMetadata } from './metadata.js';
+import { writeImage } from './destination.js';
+import { saveBrowserDownload as save } from './browser-downloads.js';
+import { contentHash } from './file-content.js';
 
 export async function scanTab(tabId, xpath = '', excludedSelectors = '') {
   // DevTools XPath is relative to the top document. Never leak unscoped iframe images.
@@ -12,7 +16,7 @@ export async function scanTab(tabId, xpath = '', excludedSelectors = '') {
   let truncated = false;
   for (const { frameId, documentId, result } of frames) {
     if (!result) continue;
-    if (result.error) throw new Error(result.error);
+    if (result.error) throw new Error(translatedSource(result.error));
     truncated ||= result.truncated;
     for (const item of result.items) {
       const origin = { id: item.id, documentId, frameId };
@@ -23,35 +27,36 @@ export async function scanTab(tabId, xpath = '', excludedSelectors = '') {
         existing.sources = [...new Set([...existing.sources, ...item.sources])];
         if (item.bytes > 0 && !(existing.bytes > 0)) Object.assign(existing, { bytes: item.bytes, sizeSource: item.sizeSource });
         if (item.loaded && !existing.loaded) Object.assign(existing, {
-          loaded: true, width: item.width, height: item.height, preview: item.preview,
+          loaded: true, width: item.width, height: item.height, preview: item.preview, previewIssue: item.previewIssue,
         });
+        if (!existing.preview && item.preview) Object.assign(existing, { preview: item.preview, previewIssue: '' });
       } else unique.set(key, { ...item, key, origins: [origin], order: unique.size });
     }
   }
   return { items: await prepareMetadata([...unique.values()]), frames: frames.filter(f => f.result).length, matchedRoots: frames.reduce((sum, f) => sum + (f.result?.matchedRoots || 0), 0), truncated };
 }
 
-async function pageData(tabId, item, refresh) {
+async function pageData(tabId, item, refresh, preview) {
   const errors = [];
   for (const origin of item.origins) {
     try {
       const [response] = await chrome.scripting.executeScript({
         target: { tabId, documentIds: [origin.documentId] },
-        func: (id, refresh) => globalThis.__imageTaken?.read(id, { refresh }), args: [origin.id, refresh],
+        func: (id, refresh, preview) => globalThis.__imageTaken?.read(id, { refresh, preview }), args: [origin.id, refresh, preview],
       });
       if (response?.result?.dataUrl) return response.result;
-      errors.push(response?.result?.error || '页面已改变');
+      errors.push(translatedSource(response?.result?.error) || t('页面已改变'));
     } catch (error) { errors.push(error.message); }
   }
   throw new Error(errors.join('；'));
 }
 
 async function extensionBlob(url, refresh) {
-  if (!/^https?:/.test(url)) throw new Error('此资源只能从原页面读取');
+  if (!/^https?:/.test(url)) throw new Error(t('此资源只能从原页面读取'));
   const response = await fetch(url, { cache: refresh ? 'reload' : 'force-cache', credentials: 'include', signal: AbortSignal.timeout(12000) });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const mime = response.headers.get('content-type')?.split(';')[0] || '';
-  if (!mime.startsWith('image/')) throw new Error('服务器没有返回图片');
+  if (!mime.startsWith('image/')) throw new Error(t('服务器没有返回图片'));
   const reader = response.body.getReader();
   const chunks = [];
   let bytes = 0;
@@ -60,25 +65,25 @@ async function extensionBlob(url, refresh) {
       const { done, value } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > 20 * 1024 * 1024) throw new Error('图片超过 20 MiB 数据读取上限，请使用原格式直接下载');
+      if (bytes > 20 * 1024 * 1024) throw new Error(t('图片超过 20 MiB 数据读取上限，请使用原格式直接下载'));
       chunks.push(value);
     }
   } finally { await reader.cancel().catch(() => {}); }
-  if (!bytes) throw new Error('图片数据为空');
+  if (!bytes) throw new Error(t('图片数据为空'));
   return new Blob(chunks, { type: mime });
 }
 
-export async function readImage(tabId, item, { refresh = false } = {}) {
+export async function readImage(tabId, item, { refresh = false, preview = false } = {}) {
   let pageError;
   try {
-    const result = await pageData(tabId, item, refresh);
+    const result = await pageData(tabId, item, refresh, preview);
     // Data URLs have already been bounded in the owning document.
     const blob = await (await fetch(result.dataUrl)).blob();
-    if (!blob.type.startsWith('image/')) throw new Error('页面返回的数据不是图片');
+    if (!blob.type.startsWith('image/')) throw new Error(t('页面返回的数据不是图片'));
     return { blob, method: result.method };
   } catch (error) { pageError = error; }
   try { return { blob: await extensionBlob(item.url, refresh), method: 'extension-fetch' }; }
-  catch (error) { throw new Error(`页面：${pageError.message}；扩展：${error.message}`); }
+  catch (error) { throw new Error(t(`页面：{0}；扩展：{1}`, pageError.message, error.message)); }
 }
 
 export async function convert(blob, format) {
@@ -88,7 +93,7 @@ export async function convert(blob, format) {
     const image = new Image();
     image.src = url;
     await image.decode();
-    if (!image.naturalWidth || image.naturalWidth * image.naturalHeight > 24_000_000) throw new Error('转换最多支持 2400 万像素');
+    if (!image.naturalWidth || image.naturalWidth * image.naturalHeight > 24_000_000) throw new Error(t('转换最多支持 2400 万像素'));
     const canvas = document.createElement('canvas');
     canvas.width = image.naturalWidth;
     canvas.height = image.naturalHeight;
@@ -96,53 +101,30 @@ export async function convert(blob, format) {
     if (format === 'jpg') { context.fillStyle = '#fff'; context.fillRect(0, 0, canvas.width, canvas.height); }
     context.drawImage(image, 0, 0);
     const output = await new Promise(resolve => canvas.toBlob(resolve, `image/${format === 'jpg' ? 'jpeg' : format}`, 0.94));
-    if (!output) throw new Error('浏览器无法转换这张图片');
+    if (!output) throw new Error(t('浏览器无法转换这张图片'));
     return output;
   } finally { URL.revokeObjectURL(url); }
 }
 
-// Resolve only on Chrome's completed event, not merely when a download is queued.
-async function save(url, name) {
-  const id = await chrome.downloads.download({ url, filename: name, conflictAction: 'uniquify', saveAs: false });
-  return new Promise((resolve, reject) => {
-    let poll, timeout;
-    const cleanup = () => {
-      clearInterval(poll); clearTimeout(timeout); chrome.downloads.onChanged.removeListener(listener);
-    };
-    const check = async () => {
-      try {
-        const [download] = await chrome.downloads.search({ id });
-        if (download?.state === 'complete') { cleanup(); resolve(download); }
-        else if (download?.state === 'interrupted') { cleanup(); reject(new Error(download.error || '下载中断')); }
-      } catch (error) { cleanup(); reject(error); }
-    };
-    const listener = delta => { if (delta.id === id && (delta.state || delta.error)) void check(); };
-    chrome.downloads.onChanged.addListener(listener);
-    poll = setInterval(check, 1000);
-    timeout = setTimeout(() => {
-      cleanup();
-      // A pending download is not success. Cancel before releasing its Blob URL.
-      void chrome.downloads.cancel(id).catch(() => {});
-      reject(new Error('下载超时（120 秒），已取消，请重试'));
-    }, 120_000);
-    void check();
-  });
-}
-
-export async function downloadImage(tabId, item, index, format) {
+export async function downloadImage(tabId, item, index, format, destination = { folder: t('未命名页面'), directory: null }) {
   let result;
   try { result = await readImage(tabId, item); }
   catch (error) {
-    if (format !== 'original' || !/^https?:/.test(item.url) || item.kind === 'canvas') throw error;
+    if (destination.directory || format !== 'original' || !/^https?:/.test(item.url) || item.kind === 'canvas') throw error;
     // Useful for large files or servers that treat fetch and downloads differently.
-    const downloaded = await save(item.url, filename(item, index));
-    if (downloaded.mime && !downloaded.mime.startsWith('image/')) throw new Error('直接下载的响应不是图片，请检查下载目录');
-    return { method: 'browser-download', bytes: downloaded.fileSize };
+    const downloaded = await save(item.url, filename(item, index, undefined, format, destination.folder));
+    if (downloaded.mime && !downloaded.mime.startsWith('image/')) throw new Error(t('直接下载的响应不是图片，请检查下载目录'));
+    return { method: 'browser-download', bytes: downloaded.fileSize, downloadId: downloaded.id, actualPath: downloaded.filename };
   }
   const blob = await convert(result.blob, format);
+  const name = filename(item, index, blob.type, format, destination.folder);
+  if (destination.directory) {
+    const saved = await writeImage(destination.directory, name.slice(name.lastIndexOf('/') + 1), blob);
+    return { method: result.method, bytes: blob.size, sourceBytes: result.blob.size, sourceMime: result.blob.type, mime: blob.type, format, skipped: saved.skipped, savedName: saved.name };
+  }
   const url = URL.createObjectURL(blob);
   try {
-    await save(url, filename(item, index, blob.type, format));
-    return { method: result.method, bytes: blob.size, sourceBytes: result.blob.size, sourceMime: result.blob.type, mime: blob.type, format };
+    const downloaded = await save(url, name, await contentHash(blob));
+    return { method: result.method, bytes: blob.size, sourceBytes: result.blob.size, sourceMime: result.blob.type, mime: blob.type, format, downloadId: downloaded.id, actualPath: downloaded.filename, skipped: downloaded.skipped };
   } finally { URL.revokeObjectURL(url); }
 }

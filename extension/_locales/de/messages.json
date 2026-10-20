@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "ImageTaken · Bild-Downloader"
+  },
+  "extensionDescription": {
+    "message": "Seitenbilder finden, geladene Ressourcen nutzen, filtern, gesammelt herunterladen und konvertieren."
+  },
+  "actionTitle": {
+    "message": "ImageTaken öffnen"
+  }
+}

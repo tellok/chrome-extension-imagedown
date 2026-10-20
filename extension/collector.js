@@ -93,7 +93,9 @@
         if (!previous.sources.includes(source)) previous.sources.push(source);
         if (extra.loaded && !previous.loaded) Object.assign(previous, {
           loaded: true, element, width: extra.width || 0, height: extra.height || 0, preview: extra.preview || '',
+          previewIssue: extra.previewIssue || '',
         });
+        if (!previous.preview && extra.preview) Object.assign(previous, { preview: extra.preview, previewIssue: '', element });
         return previous;
       }
       // Keep the per-frame serialization safely below Chrome's message limit.
@@ -104,7 +106,7 @@
       const record = {
         id, url, sources: [source], element,
         width: extra.width || 0, height: extra.height || 0,
-        loaded: !!extra.loaded, preview: extra.preview || '',
+        loaded: !!extra.loaded, preview: extra.preview || '', previewIssue: extra.previewIssue || '',
         bytes: extra.snapshot ? Math.max(0, Math.floor(extra.snapshot.split(',')[1].length * 3 / 4) - (extra.snapshot.endsWith('==') ? 2 : extra.snapshot.endsWith('=') ? 1 : 0)) : null,
         sizeSource: extra.snapshot ? 'Canvas PNG 快照大小' : '',
         kind: extra.kind || '', snapshot: extra.snapshot || '',
@@ -126,10 +128,12 @@
           const current = el.currentSrc || el.src;
           const loaded = el.complete && el.naturalWidth > 0;
           let preview = '';
+          let previewIssue = loaded ? 'budget' : 'not-loaded';
           if (loaded && previewBytes < 6 * 1024 * 1024) {
-            try { preview = pixels(el, true); previewBytes += preview.length; } catch { /* Keep the candidate. */ }
+            try { preview = pixels(el, true); previewBytes += preview.length; previewIssue = ''; }
+            catch (error) { previewIssue = error.name === 'SecurityError' ? 'cross-origin' : 'unavailable'; }
           }
-          add(current, 'img', el, { loaded, width: el.naturalWidth, height: el.naturalHeight, preview });
+          add(current, 'img', el, { loaded, width: el.naturalWidth, height: el.naturalHeight, preview, previewIssue });
           if (el.getAttribute('src')) add(el.src, 'src', el);
           for (const attr of ['data-src', 'data-original', 'data-lazy-src', 'data-url']) {
             const value = el.getAttribute(attr);
@@ -213,7 +217,7 @@
     return { dataUrl, method, bytes: blob.size, mime: blob.type };
   }
 
-  async function read(id, { refresh = false } = {}) {
+  async function read(id, { refresh = false, preview = false } = {}) {
     const record = records.get(id) || history.find(generation => generation.has(id))?.get(id);
     if (!record) return { error: '页面已重新扫描，请刷新图片列表' };
     const { url, element } = record;
@@ -226,6 +230,14 @@
       if (url.startsWith('data:')) {
         if (!/^data:image\//i.test(url) || url.length > MAX_BYTES * 4 / 3) throw new Error('无效或过大的图片数据');
         return { dataUrl: url, method: 'embedded' };
+      }
+      // Preview retries can use already decoded pixels without a network
+      // request. File downloads keep the original-byte-first path below so
+      // animated GIFs and other source formats are not replaced with PNGs.
+      if (preview && element instanceof HTMLImageElement && element.complete && element.naturalWidth &&
+          (element.currentSrc || element.src) === url) {
+        try { return { dataUrl: pixels(element, true), method: 'decoded-pixels', mime: 'image/png' }; }
+        catch (error) { errors.push(error.message); }
       }
       const fetchImage = async (cache) => {
         const response = await fetch(url, {
@@ -248,7 +260,7 @@
         } finally { await reader.cancel().catch(() => {}); }
         return new Blob(chunks, { type: response.headers.get('content-type')?.split(';')[0] || 'application/octet-stream' });
       };
-      if (!refresh && new URL(url).origin === location.origin && !url.startsWith('blob:')) {
+      if ((!refresh || preview) && new URL(url).origin === location.origin && !url.startsWith('blob:')) {
         try { return await asData(await fetchImage('only-if-cached'), 'page-cache'); }
         catch (error) { errors.push(error.message); }
       }
@@ -261,7 +273,7 @@
         catch (error) { errors.push(error.message); }
       }
     } catch (error) { errors.push(error.message); }
-    return { error: errors.join('；') || '页面无法读取原图数据' };
+    return { error: [...new Set(errors)].join('；') || '页面无法读取原图数据' };
   }
   globalThis.__imageTaken = { scan, read };
 })();

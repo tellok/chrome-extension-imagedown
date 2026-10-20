@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "ImageTaken · 画像ダウンローダー"
+  },
+  "extensionDescription": {
+    "message": "ページ画像を検索し、既存リソースを優先して絞り込み・一括保存・形式変換。"
+  },
+  "actionTitle": {
+    "message": "ImageTaken を開く"
+  }
+}

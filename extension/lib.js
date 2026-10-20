@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 export function imageType(item) {
   if (item.kind === 'canvas') return 'png';
   const mime = item.mime || item.url.match(/^data:([^;,]+)/i)?.[1];
@@ -6,7 +7,20 @@ export function imageType(item) {
   catch { return 'unknown'; }
 }
 
-export function filename(item, index, mime, format = 'original') {
+export function folderName(title) {
+  let name = String(title || '').normalize('NFC').replace(/[\x00-\x1f\x7f<>:"/\\|?*]/g, '_')
+    .trim().replace(/^\.+|[. ]+$/g, '');
+  if (/^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(name)) name = `_${name}`;
+  // Leave room for the image filename; never cut through a Unicode code point.
+  let short = '';
+  for (const char of name) {
+    if (new TextEncoder().encode(short + char).length > 120) break;
+    short += char;
+  }
+  return short.replace(/[. ]+$/g, '') || t('未命名页面');
+}
+
+export function filename(item, index, mime, format = 'original', folder = t('未命名页面')) {
   const ext = format === 'original' ? imageType({ ...item, mime }) : format;
   let name = '';
   try { name = decodeURIComponent(new URL(item.url).pathname.split('/').pop()); } catch { /* Use generated name. */ }
@@ -14,7 +28,7 @@ export function filename(item, index, mime, format = 'original') {
     .replace(/^\.+|[. ]+$/g, '').slice(0, 100);
   if (!name || item.kind === 'canvas' || /^(data:|blob:)/.test(item.url)) name = 'image';
   // Always prefix: handles Windows reserved names, collisions and page-controlled paths.
-  return `ImageTaken/${String(index + 1).padStart(3, '0')}-${name}.${ext === 'unknown' ? 'img' : ext}`;
+  return `${folderName(folder)}/${String(index + 1).padStart(3, '0')}-${name}.${ext === 'unknown' ? 'img' : ext}`;
 }
 
 export function filterImages(items, filters, sizeOf = item => ({ bytes: Number.isFinite(item.bytes) ? item.bytes : null })) {
@@ -29,6 +43,11 @@ export function filterImages(items, filters, sizeOf = item => ({ bytes: Number.i
     (!filters.height || !item.height || item.height >= filters.height) &&
     (!filters.minBytes || sizeOf(item).bytes == null || sizeOf(item).bytes >= filters.minBytes));
   return filtered.sort((a, b) => {
+    if (filters.readyFirst) {
+      const ready = item => item.previewStatus === 'ready' && !item.previewPending;
+      const priority = Number(ready(b)) - Number(ready(a));
+      if (priority) return priority;
+    }
     if (filters.sort === 'area') return b.width * b.height - a.width * a.height;
     if (filters.sort === 'width') return b.width - a.width;
     return a.order - b.order;

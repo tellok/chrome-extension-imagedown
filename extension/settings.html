@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>设置 · ImageTaken</title>
+  <link rel="icon" type="image/png" href="icons/32.png">
+  <link rel="stylesheet" href="panel.css">
+  <script type="module" src="theme.js"></script>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body class="settings-page">
+  <header><div class="brand"><img class="logo" src="icons/48.png" alt=""><h1>ImageTaken</h1><span class="breadcrumb-separator" aria-hidden="true">/</span><span class="breadcrumb-page">设置</span></div></header>
+  <main>
+    <h2>设置</h2>
+    <p class="settings-intro">设置自动保存，并应用于所有网站。</p>
+    <section class="settings-group" aria-labelledby="appearance-settings-heading">
+      <h3 id="appearance-settings-heading">外观</h3>
+      <label class="setting-row" for="theme">
+        <span><strong>主题</strong><span id="theme-help" class="setting-description">默认跟随系统，浅色和深色也可以单独选择。</span></span>
+        <select id="theme" aria-describedby="theme-help" disabled>
+          <option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option>
+        </select>
+      </label>
+    </section>
+    <section class="settings-group" aria-labelledby="language-settings-heading">
+      <h3 id="language-settings-heading">语言</h3>
+      <label class="setting-row" for="language">
+        <span><strong>界面语言</strong><span id="language-help" class="setting-description">自动跟随浏览器语言；不支持的语言使用英语。</span></span>
+        <select id="language" aria-describedby="language-help" disabled>
+          <option value="auto">自动</option>
+          <option value="ja">日本語</option><option value="de">Deutsch</option><option value="en">English</option>
+          <option value="zh-CN">简体中文</option><option value="zh-TW">繁體中文</option><option value="ko">한국어</option><option value="fr">Français</option>
+        </select>
+      </label>
+    </section>
+    <section class="settings-group" aria-labelledby="title-settings-heading">
+      <h3 id="title-settings-heading">标题与文件夹</h3>
+      <label class="setting-row" for="auto-clean-title">
+        <span><strong>自动清洗标题</strong><span id="cleanup-help" class="setting-description">去除网页标题中的颜文字和表情符号，用于页面标题和下载文件夹名称。手动编辑的标题会保留。</span></span>
+        <input id="auto-clean-title" type="checkbox" role="switch" aria-describedby="cleanup-help" disabled>
+      </label>
+      <p class="settings-note">默认关闭，开启后自动处理网页原标题。</p>
+    </section>
+    <section class="settings-group" aria-labelledby="display-settings-heading">
+      <h3 id="display-settings-heading">图片展示</h3>
+      <label class="setting-row" for="ready-first">
+        <span><strong>优先展示成功加载的图片</strong><span id="ready-first-help" class="setting-description">将预览已成功加载的图片排在前面，加载中和失败的图片排在后面。各组内保留当前排序。</span></span>
+        <input id="ready-first" type="checkbox" role="switch" aria-describedby="ready-first-help" disabled>
+      </label>
+      <p class="settings-note">默认关闭。开启后，预览加载或重试成功时会自动调整顺序。</p>
+    </section>
+    <p id="settings-status" role="status" aria-live="polite"></p>
+  </main>
+  <script type="module" src="settings-page.js"></script>
+</body>
+</html>
