@@ -3,8 +3,8 @@ import { initI18n, bindDocument, localizeDocument, translateRendered } from './i
 import { THEME_KEY } from './theme.js';
 import { scanTab, downloadImage } from './api.js';
 import { filterImages, imageType, METHOD_LABELS } from './lib.js';
-import { normalizeThreshold, siteDomain, ignoreStorageKey, imageSize, formatBytes } from './metadata.js';
-import { loadThresholds, saveThresholds, resetThresholds, thresholdChanges, loadIgnored, setIgnored, loadXPath, xpathStorageKey, loadExclusions, exclusionsStorageKey, loadQuery, saveQuery, VIEW_FILTERS_KEY, loadViewFilters, saveViewFilters, normalizeViewFilters } from './preferences.js';
+import { DEFAULT_THRESHOLDS, normalizeThreshold, siteDomain, ignoreStorageKey, imageSize, formatBytes } from './metadata.js';
+import { loadThresholdState, saveThresholds, resetThresholds, thresholdChanges, loadIgnored, setIgnored, loadXPath, xpathStorageKey, loadExclusions, exclusionsStorageKey, loadQuery, saveQuery, VIEW_FILTERS_KEY, loadViewFilters, saveViewFilters, normalizeViewFilters } from './preferences.js';
 import { loadPreview, previewOrigin } from './previews.js';
 import { bindGallerySelection } from './selection.js';
 import { bindTitleEditor } from './title-editor.js';
@@ -20,6 +20,9 @@ let directory = null, directoryReady = false, locationBusy = false;
 let lastDownloadId = null;
 let queryRevision = 0;
 let thresholdRevision = 0, thresholdsReady = false;
+let thresholdWrites = Promise.resolve();
+const thresholdState = { values: { ...DEFAULT_THRESHOLDS }, defaults: { ...DEFAULT_THRESHOLDS }, overrides: {} };
+const dimensionDrafts = { width: '', height: '' }, resettingDimensions = new Set();
 const thresholdCards = new Map();
 let panelTabId = null, sourceLoading = false;
 let readyFirst = false, previewOrderTimer;
@@ -59,7 +62,7 @@ $('choose-location').addEventListener('click', () => void changeDirectory());
 $('reset-location').addEventListener('click', () => void changeDirectory(true));
 
 function filters() {
-  return { query: $('query').value, width: Math.max(0, +$('min-width').value), height: Math.max(0, +$('min-height').value),
+  return { query: $('query').value, width: thresholdState.values.width, height: thresholdState.values.height,
     minBytes: normalizeThreshold($('min-size').value) * 1024, showIgnored: $('show-ignored').checked,
     type: $('type').value, source: $('source').value, loaded: $('loaded').checked, sort: $('sort').value, readyFirst };
 }
@@ -169,10 +172,27 @@ async function retryAllPreviews() {
   if (state.retryBatch === batch) { state.retryBatch = null; render(); }
 }
 const thresholdInputs = { width: 'min-width', height: 'min-height', minBytes: 'min-size' };
-function applyThresholds(values) {
-  for (const [field, id] of Object.entries(thresholdInputs)) {
-    if (values[field] !== undefined) $(id).value = field === 'minBytes' ? values[field] / 1024 : values[field];
+function updateDimensionInputs(skipFocused = false) {
+  for (const field of ['width', 'height']) {
+    const input = $(thresholdInputs[field]);
+    const inherited = !Object.hasOwn(thresholdState.overrides, field);
+    input.placeholder = inherited ? t('全局默认({0})', thresholdState.defaults[field]) : '';
+    input.title = t('全局默认({0})', thresholdState.defaults[field]);
+    if (!(skipFocused && document.activeElement === input)) {
+      input.value = inherited ? '' : String(thresholdState.overrides[field]);
+      dimensionDrafts[field] = input.value;
+    }
   }
+}
+function applyThresholdState(snapshot, skipFocused = false) {
+  Object.assign(thresholdState, snapshot);
+  updateDimensionInputs(skipFocused);
+  if (!skipFocused || document.activeElement !== $('min-size')) $('min-size').value = snapshot.values.minBytes / 1024;
+}
+function queueThresholdSave(domain, values) {
+  const operation = thresholdWrites.then(() => saveThresholds(domain, values));
+  thresholdWrites = operation.catch(() => {});
+  return operation;
 }
 function applyIgnored() {
   for (const item of state.items) {
@@ -227,6 +247,7 @@ function selectionUI() {
   for (const button of $('gallery').querySelectorAll('.single-download')) button.disabled = state.busy || previewWork || locationBusy || !directoryReady;
   for (const button of $('gallery').querySelectorAll('.retry-preview')) button.disabled = state.busy || state.scanning || !!state.retryBatch || button.dataset.pending === 'true';
   for (const id of [...Object.values(thresholdInputs), 'defaults', 'reset']) $(id).disabled = state.scanning || !state.domain || !thresholdsReady;
+  for (const field of ['width', 'height']) $(`reset-min-${field}`).disabled = state.scanning || state.busy || !state.domain || !thresholdsReady || resettingDimensions.has(field) || !Object.hasOwn(thresholdState.overrides, field);
   retryUI();
 }
 
@@ -362,9 +383,10 @@ async function refresh(tab = state.tab) {
   notice(''); render();
   try {
     if (!/^https?:/.test(tab.url || '')) throw new Error(t('请切换到普通 HTTP / HTTPS 网页。浏览器内部页、商店页及 PDF 阅读器可能不允许扩展访问。'));
-    const [xpath, exclusions, query, thresholds] = await Promise.all([loadXPath(domain), loadExclusions(domain), loadQuery(domain), loadThresholds(domain)]);
+    await thresholdWrites;
+    const [xpath, exclusions, query, thresholds] = await Promise.all([loadXPath(domain), loadExclusions(domain), loadQuery(domain), loadThresholdState(domain)]);
     if (generation !== state.generation) return;
-    applyThresholds(thresholds); thresholdsReady = true;
+    applyThresholdState(thresholds); thresholdsReady = true;
     if (queryRevision === queryVersion) $('query').value = query;
     state.xpath = xpath; state.exclusions = exclusions;
     $('site-rules-count').textContent = [xpath && t('XPath 范围'), exclusions && t('CSS 排除')].filter(Boolean).join(' · ') || t('未启用');
@@ -473,10 +495,10 @@ async function syncThresholds(skipFocused = false) {
   if (!state.domain || state.scanning) return;
   const domain = state.domain, revision = ++thresholdRevision;
   try {
-    const values = await loadThresholds(domain);
+    await thresholdWrites;
+    const values = await loadThresholdState(domain);
     if (domain !== state.domain || revision !== thresholdRevision) return;
-    if (skipFocused) for (const [field, id] of Object.entries(thresholdInputs)) if (document.activeElement === $(id)) delete values[field];
-    applyThresholds(values); thresholdsReady = true; render(true);
+    applyThresholdState(values, skipFocused); thresholdsReady = true; render(true);
   } catch (error) {
     if (domain === state.domain && revision === thresholdRevision) {
       thresholdsReady = false; selectionUI(); notice(t('筛选设置保存失败：{0}', error.message), true);
@@ -489,15 +511,54 @@ $('query').addEventListener('input', () => {
   scheduleRender();
 });
 for (const [field, id] of Object.entries(thresholdInputs)) {
-  $(id).addEventListener('input', () => {
-    if (!thresholdsReady || !state.domain || state.scanning) return;
+  const input = $(id);
+  const dimension = field !== 'minBytes';
+  let composing = false;
+  function acceptInput() {
+    if (!thresholdsReady || !state.domain || state.scanning || composing) return;
+    if (dimension) {
+      if (input.value === '') { dimensionDrafts[field] = ''; return; }
+      if (!/^[0-9]+$/.test(input.value) || Number(input.value) > 100000) {
+        input.value = dimensionDrafts[field];
+        notice(t('请输入 0 至 100000 的整数。'), true);
+        return;
+      }
+      dimensionDrafts[field] = input.value;
+    }
     const domain = state.domain;
     thresholdRevision++;
-    const value = normalizeThreshold($(id).value) * (field === 'minBytes' ? 1024 : 1);
+    const value = normalizeThreshold(input.value) * (dimension ? 1 : 1024);
+    thresholdState.values[field] = value; thresholdState.overrides[field] = value;
+    if (dimension) { input.placeholder = ''; }
     render(true);
-    void saveThresholds(domain, { [field]: value }).catch(error => { if (domain === state.domain) notice(t(`筛选设置保存失败：{0}`, error.message), true); });
-  });
-  $(id).addEventListener('blur', () => { if (thresholdsReady) void syncThresholds(); });
+    void queueThresholdSave(domain, { [field]: value }).catch(async error => {
+      if (domain !== state.domain) return;
+      await syncThresholds();
+      if (domain === state.domain) notice(t('筛选设置保存失败：{0}', error.message), true);
+    });
+  }
+  if (dimension) {
+    input.addEventListener('beforeinput', event => {
+      if (event.isComposing || event.inputType?.startsWith('delete') || event.data == null) return;
+      const candidate = input.value.slice(0, input.selectionStart) + event.data + input.value.slice(input.selectionEnd);
+      if (!/^[0-9]*$/.test(candidate) || Number(candidate) > 100000) event.preventDefault();
+    });
+    input.addEventListener('compositionstart', () => { composing = true; });
+    input.addEventListener('compositionend', () => { composing = false; acceptInput(); });
+    $(`reset-min-${field}`).addEventListener('click', async () => {
+      if (!thresholdsReady || !state.domain || state.scanning || state.busy || resettingDimensions.has(field)) return;
+      const domain = state.domain;
+      thresholdRevision++; resettingDimensions.add(field); selectionUI();
+      try {
+        await thresholdWrites;
+        await resetThresholds(domain, [field]);
+        if (domain === state.domain) await syncThresholds();
+      } catch (error) { if (domain === state.domain) notice(t('筛选设置保存失败：{0}', error.message), true); }
+      finally { resettingDimensions.delete(field); selectionUI(); }
+    });
+  }
+  input.addEventListener('input', acceptInput);
+  input.addEventListener('blur', () => { if (thresholdsReady) void syncThresholds(); });
 }
 function applyViewFilters(value) {
   const view = normalizeViewFilters(value);
@@ -513,17 +574,18 @@ $('reset').addEventListener('click', () => {
   if (!thresholdsReady || !state.domain || state.scanning) return;
   thresholdRevision++;
   for (const id of ['query', 'min-width', 'min-height', 'min-size', 'type', 'source']) $(id).value = '';
+  thresholdState.values = { width: 0, height: 0, minBytes: 0 }; thresholdState.overrides = { ...thresholdState.values }; updateDimensionInputs();
   $('loaded').checked = false; $('show-ignored').checked = false; render();
   void saveViewFilters(filters()).catch(error => notice(error.message, true));
   queryRevision++;
   void saveQuery(state.domain, '').catch(error => notice(t(`搜索内容清除失败：{0}`, error.message), true));
-  void saveThresholds(state.domain, { width: 0, height: 0, minBytes: 0 }).catch(error => notice(error.message, true));
+  void queueThresholdSave(state.domain, { width: 0, height: 0, minBytes: 0 }).catch(error => notice(error.message, true));
 });
 $('defaults').addEventListener('click', async () => {
   if (!thresholdsReady || !state.domain || state.scanning) return;
   const domain = state.domain;
   thresholdRevision++;
-  try { await resetThresholds(domain); if (domain === state.domain) await syncThresholds(); }
+  try { await thresholdWrites; await resetThresholds(domain); if (domain === state.domain) await syncThresholds(); }
   catch (error) { if (domain === state.domain) notice(error.message, true); }
 });
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -614,6 +676,7 @@ window.addEventListener('imagetaken-languagechange', event => {
   for (const item of state.items) if (item.previewError) item.previewError = translateRendered(item.previewError, event.previousLanguage);
   for (const result of state.results.values()) if (result.error) result.error = translateRendered(result.error, event.previousLanguage);
   titleEditor.localize();
+  updateDimensionInputs(true);
   updateDestinationUI(); render();
 });
 

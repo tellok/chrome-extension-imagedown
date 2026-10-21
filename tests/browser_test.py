@@ -141,6 +141,100 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(THRESHOLD_IMAGES.get(path, SMALL if path in ('/small.png', '/pseudo.png') else PNG))
 
 
+def test_threshold_override_controls(context, worker, extension_id, origin):
+    saved = worker.evaluate('async () => await chrome.storage.local.get(null)')
+    prefixes = ('filters:', 'image-query:', 'xpath:', 'excluded-selectors:', 'ignored:')
+    keys = [key for key in saved if key.startswith(prefixes)]
+    worker.evaluate('keys=>chrome.storage.local.remove(keys)', keys)
+    worker.evaluate("chrome.storage.local.set({'filters:width':50,'filters:height':80})")
+    source = context.new_page()
+    panel = context.new_page()
+    try:
+        source.goto(origin + '/frame')
+        tab_id = worker.evaluate('async url=>(await chrome.tabs.query({})).find(t=>t.url===url).id', source.url)
+        panel.goto(f'chrome-extension://{extension_id}/panel.html?tab={tab_id}')
+        expect(panel.locator('.page-context')).to_have_attribute('data-frames','1')
+        panel.locator('#filters').evaluate('(el)=>el.open=true')
+        width, height = panel.locator('#min-width'), panel.locator('#min-height')
+        reset_width, reset_height = panel.locator('#reset-min-width'), panel.locator('#reset-min-height')
+        expect(width).to_have_value(''); expect(width).to_have_attribute('placeholder','全局默认(50)')
+        expect(height).to_have_value(''); expect(height).to_have_attribute('placeholder','全局默认(80)')
+        expect(reset_width).to_be_disabled(); expect(reset_height).to_be_disabled()
+        width.fill('50'); height.fill('0'); panel.locator('#min-size').fill('0')
+        expect(width).to_have_value('50'); expect(height).to_have_value('0')
+        expect(reset_width).to_be_enabled(); expect(reset_height).to_be_enabled()
+        reset_width.click()
+        expect(width).to_have_value(''); expect(width).to_have_attribute('placeholder','全局默认(50)')
+        expect(height).to_have_value('0'); expect(panel.locator('#min-size')).to_have_value('0')
+        worker.evaluate("chrome.storage.local.set({'filters:width':1000})")
+        expect(width).to_have_attribute('placeholder','全局默认(1000)')
+        expect(panel.locator('.card .image-url').filter(has_text='frame-only.png')).to_have_count(0)
+        panel.wait_for_function('async id => await chrome.action.getBadgeText({tabId:id}) === "0"', arg=tab_id)
+        worker.evaluate("chrome.storage.local.set({'filters:width':100})")
+        expect(width).to_have_attribute('placeholder','全局默认(100)')
+        expect(panel.locator('.card .image-url').filter(has_text='frame-only.png')).to_have_count(1)
+        reset_height.click()
+        expect(height).to_have_value(''); expect(height).to_have_attribute('placeholder','全局默认(80)')
+        width.fill('300'); height.fill('120'); panel.locator('#query').focus()
+        panel.wait_for_function("async () => (await chrome.storage.local.get('filters:site:v1:127.0.0.1:width'))['filters:site:v1:127.0.0.1:width'] === 300")
+        panel.evaluate("() => {window.originalControlRemove=chrome.storage.local.remove;chrome.storage.local.remove=async()=>{throw new Error('reset denied')};}")
+        reset_width.click()
+        expect(panel.locator('#notice')).to_have_text('筛选设置保存失败：reset denied')
+        expect(width).to_have_value('300'); expect(height).to_have_value('120')
+        panel.evaluate('() => {chrome.storage.local.remove=window.originalControlRemove;}')
+        width.focus(); width.select_text()
+        width.press('a'); width.press('-'); width.press('+'); width.press('e'); width.press('.')
+        expect(width).to_have_value('300')
+        panel.evaluate('''() => {
+          const input=document.querySelector('#min-width');
+          input.value='1e3';input.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertFromPaste',data:'1e3'}));
+        }''')
+        expect(width).to_have_value('300')
+        panel.evaluate('''() => {
+          const input=document.querySelector('#min-width');
+          input.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));
+          input.value='汉字';input.dispatchEvent(new InputEvent('input',{bubbles:true,isComposing:true}));
+          input.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'汉字'}));
+        }''')
+        expect(width).to_have_value('300')
+        width.fill(''); expect(width).to_have_value('')
+        panel.locator('#query').focus(); expect(width).to_have_value('300')
+        assert panel.evaluate("async ()=>(await (await import('./preferences.js')).loadThresholds('127.0.0.1')).width") == 300
+        width.fill('100001'); expect(width).to_have_value('300')
+        width.focus(); width.press('ControlOrMeta+A'); width.press('8'); width.press('0')
+        expect(width).to_have_value('80')
+        panel.locator('#query').focus()
+        reset_width.click(); expect(width).to_have_value(''); expect(width).to_have_attribute('placeholder','全局默认(100)')
+        expect(height).to_have_value('120')
+        panel.reload(); expect(panel.locator('.page-context')).to_have_attribute('data-frames','1')
+        panel.locator('#filters').evaluate('(el)=>el.open=true')
+        expect(width).to_have_value(''); expect(width).to_have_attribute('placeholder','全局默认(100)')
+        expect(height).to_have_value('120'); expect(reset_width).to_be_disabled(); expect(reset_height).to_be_enabled()
+        # Long labels, keyboard focus and the actual input/button geometry in both themes.
+        panel.evaluate("chrome.storage.local.set({'settings:language':'de','filters:width':100000})")
+        for theme in ('light','dark'):
+            panel.evaluate('(value)=>chrome.storage.local.set({"settings:theme":value})', theme)
+            for viewport in (320,900):
+                panel.set_viewport_size({'width':viewport,'height':1000})
+                assert panel.evaluate('document.documentElement.scrollWidth <= innerWidth')
+                assert panel.evaluate('''() => [...document.querySelectorAll('.dimension-control')].every(group => {
+                  const input=group.querySelector('input').getBoundingClientRect();
+                  const button=group.querySelector('button').getBoundingClientRect();
+                  return input.right <= button.left && button.right <= innerWidth;
+                })''')
+                if viewport == 320: panel.screenshot(path=str(OUTPUT/f'threshold-controls-{theme}-narrow.png'))
+            reset_height.focus(); assert reset_height.evaluate('(el)=>document.activeElement===el')
+            panel.screenshot(path=str(OUTPUT/f'threshold-controls-{theme}.png'))
+        print('Threshold controls: inherited values, single resets, numeric edits, failures and layouts OK')
+    finally:
+        panel.close(); source.close()
+        current = worker.evaluate('async () => Object.keys(await chrome.storage.local.get(null))')
+        worker.evaluate('keys=>chrome.storage.local.remove(keys)', [key for key in current if key.startswith(prefixes)])
+        worker.evaluate('values=>chrome.storage.local.set(values)', {key:saved[key] for key in keys})
+        worker.evaluate('values=>chrome.storage.local.set(values)', {key:saved[key] for key in ('settings:language','settings:theme') if key in saved})
+        worker.evaluate('keys=>chrome.storage.local.remove(keys)', [key for key in ('settings:language','settings:theme') if key not in saved])
+
+
 def test_site_threshold_settings(context, worker, extension_id, origin):
     saved = worker.evaluate('async () => await chrome.storage.local.get(null)')
     keys = [key for key in saved if key.startswith(('filters:', 'image-query:', 'xpath:', 'excluded-selectors:', 'ignored:'))]
@@ -171,33 +265,34 @@ def test_site_threshold_settings(context, worker, extension_id, origin):
         a.locator('#xpath').fill('//img[@data-unsaved]')
         width.fill('200'); expect(width).to_be_enabled()
         height.fill('100'); expect(height).to_be_enabled()
-        expect(a.locator('#min-width')).to_have_value('200'); expect(b.locator('#min-height')).to_have_value('100')
+        expect(a.locator('#min-width')).to_have_value(''); expect(a.locator('#min-width')).to_have_attribute('placeholder', '全局默认(200)'); expect(b.locator('#min-height')).to_have_value(''); expect(b.locator('#min-height')).to_have_attribute('placeholder', '全局默认(100)')
         assert a.evaluate("thresholdImage===document.querySelector('#gallery img')"), 'default changes recreated previews'
         expect(a.locator('.card input').first).to_be_checked()
         expect(a.locator('#xpath')).to_have_value('//img[@data-unsaved]')
+        assert a.evaluate("async () => (await (await import('./preferences.js')).loadThresholds('127.0.0.1')).width") == 200
         settings.reload(); expect(width).to_have_value('200'); expect(height).to_have_value('100')
         a.locator('#min-width').fill('0'); a.locator('#min-height').fill('20'); a.locator('#min-size').fill('0')
         a.locator('#query').focus()
-        expect(b.locator('#min-width')).to_have_value('200')
+        expect(b.locator('#min-width')).to_have_value(''); expect(b.locator('#min-width')).to_have_attribute('placeholder', '全局默认(200)')
         width.fill('300'); expect(width).to_be_enabled(); height.fill('120'); expect(height).to_be_enabled()
         expect(a.locator('#min-width')).to_have_value('0'); expect(a.locator('#min-height')).to_have_value('20')
-        expect(b.locator('#min-width')).to_have_value('300'); expect(b.locator('#min-height')).to_have_value('120')
+        expect(b.locator('#min-width')).to_have_value(''); expect(b.locator('#min-width')).to_have_attribute('placeholder', '全局默认(300)'); expect(b.locator('#min-height')).to_have_value(''); expect(b.locator('#min-height')).to_have_attribute('placeholder', '全局默认(120)')
         a.reload(); expect(a.locator('.page-context')).to_have_attribute('data-frames','1')
         expect(a.locator('#min-width')).to_have_value('0'); expect(a.locator('#min-size')).to_have_value('0')
         a.locator('#filters').evaluate('(el)=>el.open=true')
         a.locator('#defaults').click()
-        expect(a.locator('#min-width')).to_have_value('300'); expect(a.locator('#min-height')).to_have_value('120'); expect(a.locator('#min-size')).to_have_value('2')
+        expect(a.locator('#min-width')).to_have_value(''); expect(a.locator('#min-width')).to_have_attribute('placeholder', '全局默认(300)'); expect(a.locator('#min-height')).to_have_value(''); expect(a.locator('#min-height')).to_have_attribute('placeholder', '全局默认(120)'); expect(a.locator('#min-size')).to_have_value('2')
         width.fill('200'); expect(width).to_be_enabled()
-        expect(a.locator('#min-width')).to_have_value('200')
+        expect(a.locator('#min-width')).to_have_value(''); expect(a.locator('#min-width')).to_have_attribute('placeholder', '全局默认(200)')
         a.locator('#reset').click()
-        expect(a.locator('#min-width')).to_have_value('0'); expect(b.locator('#min-width')).to_have_value('200')
+        expect(a.locator('#min-width')).to_have_value('0'); expect(b.locator('#min-width')).to_have_value(''); expect(b.locator('#min-width')).to_have_attribute('placeholder', '全局默认(200)')
         a.reload(); expect(a.locator('.page-context')).to_have_attribute('data-frames','1')
         expect(a.locator('#min-width')).to_have_value('0'); expect(a.locator('#min-height')).to_have_value('0'); expect(a.locator('#min-size')).to_have_value('0')
         # Navigation must load the new source hostname, without copying the previous site's zero values.
         sources[0].goto(origin.replace('127.0.0.1','localhost') + '/frame?navigation=1')
         a.get_by_role('button', name='重新扫描页面', exact=True).click()
         expect(a.locator('.page-context')).to_have_attribute('data-frames','1')
-        expect(a.locator('#min-width')).to_have_value('200'); expect(a.locator('#min-height')).to_have_value('120')
+        expect(a.locator('#min-width')).to_have_value(''); expect(a.locator('#min-width')).to_have_attribute('placeholder', '全局默认(200)'); expect(a.locator('#min-height')).to_have_value(''); expect(a.locator('#min-height')).to_have_attribute('placeholder', '全局默认(120)')
         # Invalid entries never overwrite a valid persisted default.
         for invalid in ('', '-1', '1.5', '100001'):
             width.fill(invalid)
@@ -365,8 +460,9 @@ def test_preview_retries(context, worker, extension_id, origin, output):
     expect(panel.locator('#retry-failed')).to_have_text('↻ 重试所有失败图片 (1)')
     expect(panel.locator('#query')).to_have_value('retry-batch-a.png')
     expect(panel.locator('#selection-count')).to_contain_text('已选择 1 张')
-    expect(panel.locator('#min-width')).to_have_value('50')
-    expect(panel.locator('#min-height')).to_have_value('50')
+    expect(panel.locator('#min-width')).to_have_value(''); expect(panel.locator('#min-width')).to_have_attribute('placeholder', '全局默认(50)')
+    expect(panel.locator('#min-height')).to_have_value(''); expect(panel.locator('#min-height')).to_have_attribute('placeholder', '全局默认(50)')
+    assert panel.evaluate("async () => (await (await import('./preferences.js')).loadThresholds('127.0.0.1')).width") == 50
     expect(panel.locator('#min-size')).to_have_value('2')
     assert COUNTS.get('/retry-ignored.png', 0) == ignored_requests
     assert panel.evaluate('async () => (await chrome.downloads.search({})).length') == before_downloads
@@ -893,8 +989,8 @@ def main():
             panel.goto(f'chrome-extension://{extension_id}/panel.html?tab={tab_id}')
             expect(panel.locator('.page-context')).to_have_attribute('data-frames', '2')
             panel.wait_for_load_state('networkidle')
-            expect(panel.locator('#min-width')).to_have_value('50')
-            expect(panel.locator('#min-height')).to_have_value('50')
+            expect(panel.locator('#min-width')).to_have_value(''); expect(panel.locator('#min-width')).to_have_attribute('placeholder', '全局默认(50)')
+            expect(panel.locator('#min-height')).to_have_value(''); expect(panel.locator('#min-height')).to_have_attribute('placeholder', '全局默认(50)')
             expect(panel.locator('#min-size')).to_have_value('2')
             for hidden in ('narrow.png', 'short.png', 'under2k.png'):
                 expect(panel.locator('.card .image-url').filter(has_text=hidden)).to_have_count(0)
@@ -921,7 +1017,7 @@ def main():
             expect(panel.locator('#min-size')).to_have_value('2.5')
             panel.locator('#filters').evaluate('(el) => el.open = true')
             panel.locator('#defaults').click()
-            expect(panel.locator('#min-width')).to_have_value('50')
+            expect(panel.locator('#min-width')).to_have_value(''); expect(panel.locator('#min-width')).to_have_attribute('placeholder', '全局默认(50)')
             expect(panel.locator('.card .image-url').filter(has_text='boundary.png')).to_have_count(1)
             panel.locator('#filters').evaluate('(el) => el.open = false')
             items = panel.evaluate('''async tabId => (await (await import('./api.js')).scanTab(tabId)).items''', tab_id)
@@ -1169,6 +1265,7 @@ def main():
             test_query_cache(context, worker, extension_id, source, tab_id, origin)
             test_settings(context, worker, extension_id, origin)
             test_site_threshold_settings(context, worker, extension_id, origin)
+            test_threshold_override_controls(context, worker, extension_id, origin)
             assert not errors, errors
 
             # A navigated frame must never service an obsolete read by recycled frame ID.

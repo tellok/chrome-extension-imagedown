@@ -266,7 +266,10 @@ export const catalogs = {
     "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。": "Sites without their own settings use the global default dimensions. Site settings take priority; 0 means no limit. Minimum file size defaults to 2 KiB and is saved per site.",
     "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。": "Thresholds are saved per site. Unset dimensions use global defaults; reset to inherit again. Use 0 for no limit. ≈ means estimated size; images with unknown dimensions or sizes remain visible.",
     "请输入 0 至 100000 的整数。": "Enter an integer from 0 to 100000.",
-    "无法确定当前网站，未保存筛选设置。": "Cannot identify the current site; filters were not saved."
+    "无法确定当前网站，未保存筛选设置。": "Cannot identify the current site; filters were not saved.",
+    "全局默认({0})": "Global default({0})",
+    "还原宽度全局默认": "Restore global default width",
+    "还原高度全局默认": "Restore global default height"
   },
   "ja": {
     " · 失败 {0}": " · 失敗 {0}",
@@ -534,7 +537,10 @@ export const catalogs = {
     "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。": "個別設定のないサイトには全体の既定の幅と高さを使用します。サイト設定が優先され、0 は制限なしです。最小ファイルサイズは既定で 2 KiB、サイトごとに保存します。",
     "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。": "しきい値はサイトごとに保存します。未設定の幅と高さは全体の既定値を使用し、リセットで再び引き継ぎます。0 は制限なし。≈ は推定サイズで、サイズ不明の画像も表示します。",
     "请输入 0 至 100000 的整数。": "0 から 100000 までの整数を入力してください。",
-    "无法确定当前网站，未保存筛选设置。": "現在のサイトを特定できないため、フィルターは保存されませんでした。"
+    "无法确定当前网站，未保存筛选设置。": "現在のサイトを特定できないため、フィルターは保存されませんでした。",
+    "全局默认({0})": "全体の既定値({0})",
+    "还原宽度全局默认": "幅を全体の既定値に戻す",
+    "还原高度全局默认": "高さを全体の既定値に戻す"
   },
   "de": {
     " · 失败 {0}": " · Fehlgeschlagen {0}",
@@ -802,7 +808,10 @@ export const catalogs = {
     "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。": "Websites ohne eigene Einstellungen verwenden die globalen Standardmaße. Website-Einstellungen haben Vorrang; 0 bedeutet unbegrenzt. Die minimale Dateigröße beträgt standardmäßig 2 KiB und wird pro Website gespeichert.",
     "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。": "Grenzwerte werden pro Website gespeichert. Nicht gesetzte Maße verwenden globale Standardwerte; Zurücksetzen stellt die Übernahme wieder her. 0 bedeutet unbegrenzt. ≈ kennzeichnet Schätzungen; unbekannte Größen bleiben sichtbar.",
     "请输入 0 至 100000 的整数。": "Geben Sie eine ganze Zahl von 0 bis 100000 ein.",
-    "无法确定当前网站，未保存筛选设置。": "Die aktuelle Website ist unbekannt; Filter wurden nicht gespeichert."
+    "无法确定当前网站，未保存筛选设置。": "Die aktuelle Website ist unbekannt; Filter wurden nicht gespeichert.",
+    "全局默认({0})": "Globaler Standard({0})",
+    "还原宽度全局默认": "Globale Standardbreite wiederherstellen",
+    "还原高度全局默认": "Globale Standardhöhe wiederherstellen"
   },
   "ko": {
     " · 失败 {0}": " · 실패 {0}",
@@ -1070,7 +1079,10 @@ export const catalogs = {
     "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。": "개별 설정이 없는 사이트는 전체 기본 크기를 사용합니다. 사이트 설정이 우선하며 0은 제한 없음을 뜻합니다. 최소 파일 크기는 기본 2 KiB이며 사이트별로 저장됩니다.",
     "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。": "임계값은 사이트별로 저장됩니다. 미설정 크기는 전체 기본값을 사용하며 초기화하면 다시 따릅니다. 0은 제한 없음입니다. ≈는 추정 크기이며 크기 미상의 이미지도 표시됩니다.",
     "请输入 0 至 100000 的整数。": "0부터 100000까지의 정수를 입력하세요.",
-    "无法确定当前网站，未保存筛选设置。": "현재 사이트를 확인할 수 없어 필터를 저장하지 않았습니다."
+    "无法确定当前网站，未保存筛选设置。": "현재 사이트를 확인할 수 없어 필터를 저장하지 않았습니다.",
+    "全局默认({0})": "전체 기본값({0})",
+    "还原宽度全局默认": "너비를 전체 기본값으로 복원",
+    "还原高度全局默认": "높이를 전체 기본값으로 복원"
   },
   "fr": {
     " · 失败 {0}": " · Échecs {0}",
@@ -1338,7 +1350,10 @@ export const catalogs = {
     "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。": "Les sites sans réglages propres utilisent les dimensions globales par défaut. Les réglages du site sont prioritaires ; 0 signifie sans limite. La taille minimale est de 2 KiB par défaut, enregistrée par site.",
     "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。": "Les seuils sont enregistrés par site. Les dimensions non définies utilisent les valeurs globales ; réinitialiser rétablit cet héritage. 0 signifie sans limite. ≈ indique une estimation ; les tailles inconnues restent visibles.",
     "请输入 0 至 100000 的整数。": "Saisissez un entier de 0 à 100000.",
-    "无法确定当前网站，未保存筛选设置。": "Site actuel introuvable ; les filtres n’ont pas été enregistrés."
+    "无法确定当前网站，未保存筛选设置。": "Site actuel introuvable ; les filtres n’ont pas été enregistrés.",
+    "全局默认({0})": "Valeur globale({0})",
+    "还原宽度全局默认": "Rétablir la largeur globale par défaut",
+    "还原高度全局默认": "Rétablir la hauteur globale par défaut"
   },
   "zh-CN": {
     " · 失败 {0}": " · 失败 {0}",
@@ -1606,7 +1621,10 @@ export const catalogs = {
     "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。": "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。",
     "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。": "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。",
     "请输入 0 至 100000 的整数。": "请输入 0 至 100000 的整数。",
-    "无法确定当前网站，未保存筛选设置。": "无法确定当前网站，未保存筛选设置。"
+    "无法确定当前网站，未保存筛选设置。": "无法确定当前网站，未保存筛选设置。",
+    "全局默认({0})": "全局默认({0})",
+    "还原宽度全局默认": "还原宽度全局默认",
+    "还原高度全局默认": "还原高度全局默认"
   },
   "zh-TW": {
     " · 失败 {0}": " · 失敗 {0}",
@@ -1874,6 +1892,9 @@ export const catalogs = {
     "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。": "未單獨設定的網站使用全域預設寬高；網站設定優先，0 表示不限制。最低體積預設 2 KiB，按網站儲存。",
     "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。": "閾值按網站儲存，未設定的寬高使用全域預設值；恢復預設可重新繼承。設為 0 取消限制。≈ 表示估算體積；尺寸或體積未知的圖片仍會保留。",
     "请输入 0 至 100000 的整数。": "請輸入 0 至 100000 的整數。",
-    "无法确定当前网站，未保存筛选设置。": "無法確定目前網站，未儲存篩選設定。"
+    "无法确定当前网站，未保存筛选设置。": "無法確定目前網站，未儲存篩選設定。",
+    "全局默认({0})": "全域預設({0})",
+    "还原宽度全局默认": "還原寬度全域預設",
+    "还原高度全局默认": "還原高度全域預設"
   }
 };

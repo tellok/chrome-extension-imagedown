@@ -376,3 +376,13 @@ footer>.hint { text-align: center; margin-bottom: 0; }
 #show-download { display: block; margin: 0 0 8px auto; }
 .card[data-preview-failed=true] { cursor: default; }
 .card[data-preview-failed=true] .card-check { opacity: .5; }
+
+.dimension-filter { min-width: 0; }
+.dimension-control { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.dimension-value { position: relative; flex: 1; min-width: 0; }
+.filter-fields .dimension-value input { margin: 0; padding: 0 21px 0 6px; text-overflow: ellipsis; }
+.dimension-value>span { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); font-size: 10px; color: var(--faint); pointer-events: none; }
+.threshold-reset { flex: 0 0 24px; width: 24px; height: 27px; padding: 4px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--muted); }
+.threshold-reset:hover:not(:disabled) { background: var(--hover); border-color: var(--border); }
+.threshold-reset:disabled { opacity: .35; cursor: default; }
+.threshold-reset .ui-icon { width: 14px; height: 14px; }

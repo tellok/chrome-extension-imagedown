@@ -81,3 +81,20 @@ test('threshold storage failures propagate without persisting fallback values', 
   await assert.rejects(saveThresholds('one.test', { width: 200 }), /write denied/);
   assert.deepEqual(data, { 'filters:width': 300 });
 });
+
+test('single dimension reset preserves the other site thresholds', async () => {
+  const data = storage({ 'filters:width': 50, 'filters:height': 80 });
+  await saveThresholds('one.test', { width: 50, height: 0, minBytes: 4096 });
+  await saveThresholds('two.test', { width: 700 });
+  await resetThresholds('one.test', ['width']);
+  assert.equal(data[thresholdStorageKey('one.test', 'width')], undefined);
+  assert.deepEqual(await loadThresholds('one.test'), { width: 50, height: 0, minBytes: 4096 });
+  await resetThresholds('one.test', ['height']);
+  assert.deepEqual(await loadThresholds('one.test'), { width: 50, height: 80, minBytes: 4096 });
+  assert.equal((await loadThresholds('two.test')).width, 700);
+  assert.deepEqual(await loadGlobalDimensions(), { width: 50, height: 80 });
+  chrome.storage.local.remove = async () => { throw new Error('remove denied'); };
+  await saveThresholds('one.test', { height: 120 });
+  await assert.rejects(resetThresholds('one.test', ['height']), /remove denied/);
+  assert.equal((await loadThresholds('one.test')).height, 120);
+});

@@ -64,21 +64,30 @@ export function saveGlobalDimensions(values) {
   }
   return chrome.storage.local.set(Object.fromEntries(entries.map(([field, value]) => [GLOBAL_DIMENSION_KEYS[field], value])));
 }
-export async function loadThresholds(domain) {
+export async function loadThresholdState(domain) {
   const siteKeys = validDomain(domain) ? thresholdFields.map(field => thresholdStorageKey(domain, field)) : [];
-  const values = await chrome.storage.local.get([...Object.values(GLOBAL_DIMENSION_KEYS), ...siteKeys]);
-  return Object.fromEntries(thresholdFields.map(field => {
-    const fallback = field === 'minBytes' ? DEFAULT_THRESHOLDS.minBytes : storedThreshold(values[GLOBAL_DIMENSION_KEYS[field]], DEFAULT_THRESHOLDS[field]);
-    return [field, storedThreshold(validDomain(domain) ? values[thresholdStorageKey(domain, field)] : undefined, fallback)];
-  }));
+  const saved = await chrome.storage.local.get([...Object.values(GLOBAL_DIMENSION_KEYS), ...siteKeys]);
+  const defaults = { ...DEFAULT_THRESHOLDS };
+  const overrides = {}, values = {};
+  for (const field of thresholdFields) {
+    if (field !== 'minBytes') defaults[field] = storedThreshold(saved[GLOBAL_DIMENSION_KEYS[field]], defaults[field]);
+    const override = storedThreshold(validDomain(domain) ? saved[thresholdStorageKey(domain, field)] : undefined, undefined);
+    if (override !== undefined) overrides[field] = override;
+    values[field] = override ?? defaults[field];
+  }
+  return { values, defaults, overrides };
 }
+export async function loadThresholds(domain) {
+  return (await loadThresholdState(domain)).values;
+}
+
 export async function saveThresholds(domain, values) {
   const entries = Object.entries(values).map(([field, value]) =>
     [thresholdStorageKey(domain, field), normalizeThreshold(value, DEFAULT_THRESHOLDS[field])]);
   if (entries.length) await chrome.storage.local.set(Object.fromEntries(entries));
 }
-export async function resetThresholds(domain) {
-  await chrome.storage.local.remove(thresholdFields.map(field => thresholdStorageKey(domain, field)));
+export async function resetThresholds(domain, fields = thresholdFields) {
+  await chrome.storage.local.remove(fields.map(field => thresholdStorageKey(domain, field)));
 }
 
 export async function loadIgnored(domain) {
