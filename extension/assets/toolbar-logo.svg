@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Optical small-size adaptation of the selected mountain/carafe logo.
+       A thin light frame keeps the blue panel visible on dark toolbars. -->
+  <defs><clipPath id="panel"><rect x="3" y="3" width="122" height="122" rx="21"/></clipPath></defs>
+  <rect width="128" height="128" rx="24" fill="#f5f4f0"/>
+  <g clip-path="url(#panel)">
+    <path fill="#7abbff" d="M0 0h128v128H0z"/>
+    <path fill="#5c90cd" d="M30 125 72 34 128 125Z"/>
+    <path fill="#345e8b" d="m54 125 40-66 34 43v23Z"/>
+  </g>
+  <path fill="#f5f4f0" stroke="#252a30" stroke-width="3" stroke-linejoin="round"
+    d="m16 71-14 43q-4 12 12 12h39q16 0 12-12L51 71Z"/>
+  <path fill="#252a30" d="m15 96-7 17q-2 7 9 7h33q10 0 8-7l-7-17q-18-6-36 0Z"/>
+  <path fill="#252a30" d="M9 65q0-8 25-8t25 8v9q0 8-25 8T9 74Z"/>
+</svg>

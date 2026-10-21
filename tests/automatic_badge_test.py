@@ -1,7 +1,7 @@
 """Real extension badge updates without ever opening its UI first."""
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from threading import Thread
+from threading import Thread, Event
 import tempfile
 import time
 from playwright.sync_api import sync_playwright, expect
@@ -9,11 +9,15 @@ from browser_test import PNG, SMALL
 
 ROOT = Path(__file__).resolve().parents[1]
 counts = {}
+release_slow = Event()
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args): pass
     def do_GET(self):
         path = self.path.split('?')[0]
+        if path == '/slow-script.js':
+            release_slow.wait(30)
+            self.send_response(200); self.send_header('Content-Type', 'text/javascript'); self.end_headers(); return
         if path.endswith('.png'):
             counts[path] = counts.get(path, 0) + 1
             self.send_response(404 if path == '/broken.png' else 200)
@@ -28,6 +32,7 @@ class Handler(BaseHTTPRequestHandler):
             <div id="main"><img src="/one.png"><img src="/one.png"><img src="/two.png">
             <img src="/broken.png"><img src="/small.png"><img data-src="/lazy.png"></div>
             <iframe src="http://localhost:{self.server.server_port}/frame"></iframe>'''
+        elif path == '/slow-page': html = '<link rel="icon" href="data:,"><img src="/slow-image.png"><script async src="/slow-script.js"></script>'
         elif path == '/frame': html = '<img src="/frame.png">'
         else: html = '<link rel="icon" href="data:,"><img src="/new.png">'
         self.wfile.write(html.encode())
@@ -86,8 +91,13 @@ try:
         source.evaluate("document.querySelector('#main').insertAdjacentHTML('beforeend','<img src=\"/extra.png\">')")
         source.wait_for_timeout(1600); badge('0')
         panel.close(); badge('5')
+        source.goto(origin+'/slow-page',wait_until='domcontentloaded'); badge('1')
+        assert worker.evaluate('id=>chrome.tabs.get(id).then(t=>t.status)',tab_id)=='loading', 'count must appear before the slow subresource finishes'
+        assert worker.evaluate('id=>__imageTakenBadgeDiagnostics.get(id).state',tab_id)=='counted'
+        release_slow.set()
         source.goto(origin+'/new'); badge('1')
         print('Automatic pre-open badge, loaded-only counts, URL deduplication, lazy images, removal, shadow DOM, cross-origin iframe, XPath, panel ownership, navigation and zero extra image requests: OK')
         context.close()
 finally:
+    release_slow.set()
     server.shutdown()

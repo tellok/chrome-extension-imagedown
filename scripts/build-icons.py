@@ -1,5 +1,6 @@
-"""Export the selected logo to square extension assets; requires Pillow."""
+"""Export the selected logo to square extension assets; requires Pillow and resvg-py."""
 from pathlib import Path
+import resvg_py
 from PIL import Image, ImageDraw, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,3 +38,19 @@ for offset, background, foreground in ((0, '#ffffff', '#252a30'), (400, '#191c21
         preview.paste(icon, (x, 272), mask=icon)
         draw.text((x, 413), f'{size}px', fill=foreground)
 preview.save(ROOT / 'docs/logo-preview.png')
+
+# Chrome toolbar assets use a thinner frame so the visible blue body fills the
+# same optical area as neighboring icons. Keep the selected original elsewhere.
+for size in (16, 24, 32, 48, 128):
+    (ROOT / f'extension/icons/toolbar-{size}.png').write_bytes(resvg_py.svg_to_bytes(
+        svg_path=str(ROOT / 'extension/assets/toolbar-logo.svg'), width=size, height=size))
+
+toolbar_preview = Image.new('RGB', (800, 180))
+draw = ImageDraw.Draw(toolbar_preview)
+for offset, background, foreground in ((0, '#ffffff', '#252a30'), (400, '#303030', '#ffffff')):
+    draw.rectangle((offset, 0, offset + 399, 179), fill=background)
+    for position, size in ((16, 16), (64, 24), (112, 32), (168, 48), (248, 128)):
+        icon = Image.open(ROOT / f'extension/icons/toolbar-{size}.png').convert('RGBA')
+        toolbar_preview.paste(icon, (offset + position, 12), mask=icon)
+        draw.text((offset + position, 155), f'{size}px', fill=foreground)
+toolbar_preview.save(ROOT / 'docs/toolbar-logo-preview.png')

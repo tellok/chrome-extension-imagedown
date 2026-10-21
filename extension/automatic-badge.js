@@ -7,6 +7,8 @@ import { t } from './i18n.js';
 export function registerAutomaticBadge() {
   const timers = new Map(), running = new Set(), dirty = new Set(), versions = new Map();
   const panels = new Map();
+  const diagnostics = new Map();
+  globalThis.__imageTakenBadgeDiagnostics = diagnostics;
   const owned = tabId => [...panels.values()].some(ids => ids.includes(tabId));
   const clear = tabId => Promise.allSettled([
     chrome.action.setBadgeText({ tabId, text: '' }),
@@ -37,7 +39,7 @@ export function registerAutomaticBadge() {
       const tab = await chrome.tabs.get(tabId);
       const domain = siteDomain(tab.url);
       if (!domain) { await clear(tabId); return; }
-      if (tab.status === 'loading') return;
+      if (tab.discarded || tab.status === 'unloaded') return;
       const [thresholds, xpath, exclusions, query, ignored] = await Promise.all([
         loadThresholds(), loadXPath(domain), loadExclusions(domain), loadQuery(domain), loadIgnored(domain),
       ]);
@@ -45,6 +47,8 @@ export function registerAutomaticBadge() {
       await chrome.scripting.executeScript({ target, files: ['collector.js'] });
       const frames = await chrome.scripting.executeScript({ target,
         func: (xpath, exclusions) => globalThis.__imageTaken.scan(xpath, exclusions, true), args: [xpath, exclusions] });
+      const root = frames.find(frame => frame.frameId === 0);
+      if (!root?.result || root.result.url !== tab.url) return;
       const unique = new Map();
       for (const { result } of frames) {
         if (result?.error) throw new Error(result.error);
@@ -61,9 +65,18 @@ export function registerAutomaticBadge() {
         item.previewStatus = item.loaded ? 'ready' : '';
       }
       const visible = filterImages(items, { ...thresholds, query }, imageSize);
-      if (versions.get(tabId) === version && !owned(tabId)) await paint(tabId, imageBadge(visible, items.length));
-    } catch {
-      // Restricted, closed, or navigating documents are retried by page events.
+      const [current] = await chrome.scripting.executeScript({
+        target: { tabId, documentIds: [root.documentId] }, func: () => location.href,
+      });
+      if (current?.documentId !== root.documentId || current.result !== root.result.url) return;
+      if (versions.get(tabId) === version && !owned(tabId)) {
+        const badge = imageBadge(visible, items.length);
+        await paint(tabId, badge);
+        diagnostics.set(tabId, { state: 'counted', ready: badge.text, total: items.length, documentId: root.documentId, updatedAt: Date.now() });
+      }
+    } catch (error) {
+      if (diagnostics.get(tabId)?.error !== error.message) console.warn('ImageTaken automatic badge:', tabId, error.message);
+      diagnostics.set(tabId, { state: 'error', error: error.message, updatedAt: Date.now() });
     } finally {
       running.delete(tabId);
       if (dirty.delete(tabId)) schedule(tabId);
@@ -72,10 +85,12 @@ export function registerAutomaticBadge() {
   async function watch(tabId) {
     try {
       const tab = await chrome.tabs.get(tabId);
-      if (!siteDomain(tab.url)) return;
+      if (!siteDomain(tab.url) || tab.discarded || tab.status === 'unloaded') return;
       await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: ['badge-observer.js'] });
       schedule(tabId);
-    } catch { /* Browser-protected pages or revoked site access. */ }
+    } catch (error) {
+      diagnostics.set(tabId, { state: 'unavailable', error: error.message, updatedAt: Date.now() });
+    }
   }
   const watchExisting = () => void chrome.tabs.query({}).then(tabs => Promise.allSettled(tabs.map(tab => watch(tab.id))));
   chrome.runtime.onInstalled.addListener(watchExisting);
@@ -93,6 +108,7 @@ export function registerAutomaticBadge() {
     clearTimeout(timers.get(tabId)); timers.delete(tabId); dirty.delete(tabId);
     // Invalidate in-flight work even if the tab closes during metadata hashing.
     versions.set(tabId, (versions.get(tabId) || 0) + 1);
+    diagnostics.delete(tabId);
   });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && Object.keys(changes).some(key => /^(filters:|xpath:|excluded-selectors:|ignored:|image-query:)/.test(key))) watchExisting();
