@@ -3,7 +3,6 @@ export const catalogs = {
   "en": {
     " · 失败 {0}": " · Failed {0}",
     " · 跳过 {0}": " · Skipped {0}",
-    " 此标记说明预览来源，实际下载会优先读取原文件。": " This badge describes the preview source; downloads prioritize original files.",
     "0 张图片": "0 images",
     "CSS 排除": "CSS exclusions",
     "CSS 排除选择器无效：请检查每行的选择器语法": "Invalid CSS exclusion selector. Check each line.",
@@ -236,7 +235,6 @@ export const catalogs = {
     "预览读取自页面内嵌数据或 Blob。": "Preview read from embedded page data or a Blob.",
     "预览读取自页面已有缓存中的原文件。": "Preview read from the original file already in the page cache.",
     "预览通过图片 URL 加载，可能使用浏览器缓存；并非直接提取页面已显示图片的像素。": "Preview loaded by image URL, possibly from browser cache; not directly extracted from displayed page pixels.",
-    "默认关闭。开启后，预览加载或重试成功时会自动调整顺序。": "Off by default. When enabled, previews move automatically as loading or retries succeed.",
     "默认关闭，开启后自动处理网页原标题。": "Off by default. When enabled, original page titles are cleaned automatically.",
     "（含 {0} 张被筛选隐藏）": " (including {0} hidden by filters)",
     "，另有 {0} 张下载失败": ", plus {0} other failed downloads",
@@ -259,12 +257,13 @@ export const catalogs = {
     "浏览器资源": "Browser resource",
     "浏览器资源 · 原文件": "Browser resource · Original file",
     "浏览器保留的原始资源大小": "Original resource size retained by the browser",
-    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "Read original image data retained by the browser without requesting the image URL again."
+    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "Read original image data retained by the browser without requesting the image URL again.",
+    " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。": " Original file data already acquired is reused for downloads; if only a thumbnail is available, the original file must still be read.",
+    "默认开启。预览加载或重试成功时会自动调整顺序。": "Enabled by default. The order updates automatically when previews load or retries succeed."
   },
   "ja": {
     " · 失败 {0}": " · 失敗 {0}",
     " · 跳过 {0}": " · スキップ {0}",
-    " 此标记说明预览来源，实际下载会优先读取原文件。": " このラベルはプレビューの取得元です。ダウンロードは元ファイルを優先します。",
     "0 张图片": "画像 0 枚",
     "CSS 排除": "CSS 除外",
     "CSS 排除选择器无效：请检查每行的选择器语法": "CSS 除外セレクターが無効です。各行を確認してください。",
@@ -497,7 +496,6 @@ export const catalogs = {
     "预览读取自页面内嵌数据或 Blob。": "プレビューはページの埋め込みデータまたは Blob から取得しました。",
     "预览读取自页面已有缓存中的原文件。": "プレビューはページキャッシュ内の元ファイルから取得しました。",
     "预览通过图片 URL 加载，可能使用浏览器缓存；并非直接提取页面已显示图片的像素。": "画像 URL から読み込みました。ブラウザーキャッシュの場合もあり、表示済みピクセルの直接抽出ではありません。",
-    "默认关闭。开启后，预览加载或重试成功时会自动调整顺序。": "既定はオフ。オンにすると読み込み・再試行の成功時に自動で並び替えます。",
     "默认关闭，开启后自动处理网页原标题。": "既定はオフ。オンにすると元のページタイトルを自動整理します。",
     "（含 {0} 张被筛选隐藏）": "（フィルターで非表示 {0} 枚を含む）",
     "，另有 {0} 张下载失败": "、ほかに {0} 枚ダウンロード失敗",
@@ -520,12 +518,13 @@ export const catalogs = {
     "浏览器资源": "ブラウザーリソース",
     "浏览器资源 · 原文件": "ブラウザーリソース · 元ファイル",
     "浏览器保留的原始资源大小": "ブラウザーに保持された元リソースのサイズ",
-    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "画像 URL に再リクエストせず、ブラウザーに保持された元画像データを直接読み取りました。"
+    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "画像 URL に再リクエストせず、ブラウザーに保持された元画像データを直接読み取りました。",
+    " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。": " 取得済みの元ファイルデータはダウンロードに再利用します。サムネイルしかない場合は、元ファイルを取得します。",
+    "默认开启。预览加载或重试成功时会自动调整顺序。": "デフォルトで有効です。プレビューの読み込みや再試行が成功すると、自動で並び替えます。"
   },
   "de": {
     " · 失败 {0}": " · Fehlgeschlagen {0}",
     " · 跳过 {0}": " · Übersprungen {0}",
-    " 此标记说明预览来源，实际下载会优先读取原文件。": " Diese Kennzeichnung beschreibt die Vorschauquelle. Downloads bevorzugen Originaldateien.",
     "0 张图片": "0 Bilder",
     "CSS 排除": "CSS-Ausschlüsse",
     "CSS 排除选择器无效：请检查每行的选择器语法": "Ungültiger CSS-Ausschlussselektor. Prüfen Sie jede Zeile.",
@@ -758,7 +757,6 @@ export const catalogs = {
     "预览读取自页面内嵌数据或 Blob。": "Vorschau aus eingebetteten Daten oder einem Blob der Seite gelesen.",
     "预览读取自页面已有缓存中的原文件。": "Vorschau aus der Originaldatei im Seiten-Cache gelesen.",
     "预览通过图片 URL 加载，可能使用浏览器缓存；并非直接提取页面已显示图片的像素。": "Vorschau per Bild-URL, eventuell aus Browser-Cache; nicht direkt aus angezeigten Seitenpixeln extrahiert.",
-    "默认关闭。开启后，预览加载或重试成功时会自动调整顺序。": "Standardmäßig aus. Bei erfolgreichem Laden oder Wiederholen wird automatisch neu angeordnet.",
     "默认关闭，开启后自动处理网页原标题。": "Standardmäßig aus. Bereinigt bei Aktivierung die ursprünglichen Seitentitel.",
     "（含 {0} 张被筛选隐藏）": " (davon {0} durch Filter ausgeblendet)",
     "，另有 {0} 张下载失败": ", dazu {0} weitere fehlgeschlagene Downloads",
@@ -781,12 +779,13 @@ export const catalogs = {
     "浏览器资源": "Browser-Ressource",
     "浏览器资源 · 原文件": "Browser-Ressource · Originaldatei",
     "浏览器保留的原始资源大小": "Im Browser gespeicherte Originalressourcengröße",
-    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "Originalbilddaten direkt aus dem Browser gelesen, ohne die Bild-URL erneut anzufordern."
+    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "Originalbilddaten direkt aus dem Browser gelesen, ohne die Bild-URL erneut anzufordern.",
+    " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。": " Bereits gelesene Originaldateidaten werden für Downloads wiederverwendet. Liegt nur eine Vorschau vor, wird die Originaldatei noch eingelesen.",
+    "默认开启。预览加载或重试成功时会自动调整顺序。": "Standardmäßig aktiviert. Die Reihenfolge wird nach erfolgreichem Laden oder erneutem Versuch automatisch angepasst."
   },
   "ko": {
     " · 失败 {0}": " · 실패 {0}",
     " · 跳过 {0}": " · 건너뜀 {0}",
-    " 此标记说明预览来源，实际下载会优先读取原文件。": " 이 표시는 미리보기 출처입니다. 다운로드는 원본 파일을 우선합니다.",
     "0 张图片": "이미지 0개",
     "CSS 排除": "CSS 제외",
     "CSS 排除选择器无效：请检查每行的选择器语法": "CSS 제외 선택자가 잘못되었습니다. 각 줄을 확인하세요.",
@@ -1019,7 +1018,6 @@ export const catalogs = {
     "预览读取自页面内嵌数据或 Blob。": "페이지 내장 데이터 또는 Blob에서 읽은 미리보기입니다.",
     "预览读取自页面已有缓存中的原文件。": "페이지 캐시에 있는 원본 파일에서 읽은 미리보기입니다.",
     "预览通过图片 URL 加载，可能使用浏览器缓存；并非直接提取页面已显示图片的像素。": "이미지 URL로 로드했습니다. 브라우저 캐시를 사용할 수 있으며 표시된 픽셀에서 직접 추출한 것은 아닙니다.",
-    "默认关闭。开启后，预览加载或重试成功时会自动调整顺序。": "기본값은 꺼짐입니다. 켜면 로드 또는 재시도 성공 시 자동으로 정렬됩니다.",
     "默认关闭，开启后自动处理网页原标题。": "기본값은 꺼짐입니다. 켜면 원래 페이지 제목이 자동 정리됩니다.",
     "（含 {0} 张被筛选隐藏）": " (필터로 숨겨진 {0}개 포함)",
     "，另有 {0} 张下载失败": ", 추가 다운로드 실패 {0}개",
@@ -1042,12 +1040,13 @@ export const catalogs = {
     "浏览器资源": "브라우저 리소스",
     "浏览器资源 · 原文件": "브라우저 리소스 · 원본 파일",
     "浏览器保留的原始资源大小": "브라우저에 보관된 원본 리소스 크기",
-    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "이미지 URL을 다시 요청하지 않고 브라우저에 보관된 원본 이미지 데이터를 직접 읽었습니다."
+    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "이미지 URL을 다시 요청하지 않고 브라우저에 보관된 원본 이미지 데이터를 직접 읽었습니다.",
+    " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。": " 이미 확보한 원본 파일 데이터는 다운로드에 재사용합니다. 썸네일만 있는 경우에는 원본 파일을 추가로 가져옵니다.",
+    "默认开启。预览加载或重试成功时会自动调整顺序。": "기본적으로 켜져 있습니다. 미리보기 로드 또는 재시도가 성공하면 순서가 자동으로 조정됩니다."
   },
   "fr": {
     " · 失败 {0}": " · Échecs {0}",
     " · 跳过 {0}": " · Ignorées {0}",
-    " 此标记说明预览来源，实际下载会优先读取原文件。": " Ce badge indique la source de l’aperçu. Le téléchargement privilégie le fichier original.",
     "0 张图片": "0 image",
     "CSS 排除": "Exclusions CSS",
     "CSS 排除选择器无效：请检查每行的选择器语法": "Sélecteur d’exclusion CSS invalide. Vérifiez chaque ligne.",
@@ -1280,7 +1279,6 @@ export const catalogs = {
     "预览读取自页面内嵌数据或 Blob。": "Aperçu lu depuis les données intégrées ou un Blob.",
     "预览读取自页面已有缓存中的原文件。": "Aperçu lu depuis le fichier d’origine du cache de la page.",
     "预览通过图片 URL 加载，可能使用浏览器缓存；并非直接提取页面已显示图片的像素。": "Aperçu chargé par URL, éventuellement depuis le cache ; sans extraction directe des pixels affichés.",
-    "默认关闭。开启后，预览加载或重试成功时会自动调整顺序。": "Désactivé par défaut. Réorganise automatiquement les aperçus chargés ou récupérés.",
     "默认关闭，开启后自动处理网页原标题。": "Désactivé par défaut. Nettoie automatiquement les titres d’origine une fois activé.",
     "（含 {0} 张被筛选隐藏）": " (dont {0} masquées par les filtres)",
     "，另有 {0} 张下载失败": ", plus {0} autres échecs",
@@ -1303,12 +1301,13 @@ export const catalogs = {
     "浏览器资源": "Ressource du navigateur",
     "浏览器资源 · 原文件": "Ressource du navigateur · Fichier original",
     "浏览器保留的原始资源大小": "Taille de la ressource originale conservée par le navigateur",
-    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "Données originales lues dans le navigateur sans nouvelle requête vers l’URL de l’image."
+    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "Données originales lues dans le navigateur sans nouvelle requête vers l’URL de l’image.",
+    " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。": " Les données du fichier original déjà obtenues sont réutilisées pour le téléchargement. Si seule une miniature est disponible, le fichier original doit encore être lu.",
+    "默认开启。预览加载或重试成功时会自动调整顺序。": "Activé par défaut. L’ordre est ajusté automatiquement après le chargement d’un aperçu ou une nouvelle tentative réussie."
   },
   "zh-CN": {
     " · 失败 {0}": " · 失败 {0}",
     " · 跳过 {0}": " · 跳过 {0}",
-    " 此标记说明预览来源，实际下载会优先读取原文件。": " 此标记说明预览来源，实际下载会优先读取原文件。",
     "0 张图片": "0 张图片",
     "CSS 排除": "CSS 排除",
     "CSS 排除选择器无效：请检查每行的选择器语法": "CSS 排除选择器无效：请检查每行的选择器语法",
@@ -1541,7 +1540,6 @@ export const catalogs = {
     "预览读取自页面内嵌数据或 Blob。": "预览读取自页面内嵌数据或 Blob。",
     "预览读取自页面已有缓存中的原文件。": "预览读取自页面已有缓存中的原文件。",
     "预览通过图片 URL 加载，可能使用浏览器缓存；并非直接提取页面已显示图片的像素。": "预览通过图片 URL 加载，可能使用浏览器缓存；并非直接提取页面已显示图片的像素。",
-    "默认关闭。开启后，预览加载或重试成功时会自动调整顺序。": "默认关闭。开启后，预览加载或重试成功时会自动调整顺序。",
     "默认关闭，开启后自动处理网页原标题。": "默认关闭，开启后自动处理网页原标题。",
     "（含 {0} 张被筛选隐藏）": "（含 {0} 张被筛选隐藏）",
     "，另有 {0} 张下载失败": "，另有 {0} 张下载失败",
@@ -1564,12 +1562,13 @@ export const catalogs = {
     "浏览器资源": "浏览器资源",
     "浏览器资源 · 原文件": "浏览器资源 · 原文件",
     "浏览器保留的原始资源大小": "浏览器保留的原始资源大小",
-    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。"
+    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。",
+    " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。": " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。",
+    "默认开启。预览加载或重试成功时会自动调整顺序。": "默认开启。预览加载或重试成功时会自动调整顺序。"
   },
   "zh-TW": {
     " · 失败 {0}": " · 失敗 {0}",
     " · 跳过 {0}": " · 跳過 {0}",
-    " 此标记说明预览来源，实际下载会优先读取原文件。": " 此標記說明預覽來源，實際下載會優先讀取原檔案。",
     "0 张图片": "0 張圖片",
     "CSS 排除": "CSS 排除",
     "CSS 排除选择器无效：请检查每行的选择器语法": "CSS 排除選擇器無效：請檢查每行的選擇器語法",
@@ -1802,7 +1801,6 @@ export const catalogs = {
     "预览读取自页面内嵌数据或 Blob。": "預覽讀取自頁面內嵌資料或 Blob。",
     "预览读取自页面已有缓存中的原文件。": "預覽讀取自頁面已有快取中的原檔案。",
     "预览通过图片 URL 加载，可能使用浏览器缓存；并非直接提取页面已显示图片的像素。": "預覽透過圖片 URL 載入，可能使用瀏覽器快取；並非直接提取頁面已顯示圖片的畫素。",
-    "默认关闭。开启后，预览加载或重试成功时会自动调整顺序。": "預設關閉。開啟後，預覽載入或重試成功時會自動調整順序。",
     "默认关闭，开启后自动处理网页原标题。": "預設關閉，開啟後自動處理網頁原標題。",
     "（含 {0} 张被筛选隐藏）": "（含 {0} 張被篩選隱藏）",
     "，另有 {0} 张下载失败": "，另有 {0} 張下載失敗",
@@ -1825,6 +1823,8 @@ export const catalogs = {
     "浏览器资源": "瀏覽器資源",
     "浏览器资源 · 原文件": "瀏覽器資源 · 原始檔案",
     "浏览器保留的原始资源大小": "瀏覽器保留的原始資源大小",
-    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "直接讀取瀏覽器保留的原始圖片資料，沒有透過圖片 URL 重新請求。"
+    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "直接讀取瀏覽器保留的原始圖片資料，沒有透過圖片 URL 重新請求。",
+    " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。": " 已取得的原始檔案資料會直接重用於下載；只有縮圖時才繼續讀取原始檔案。",
+    "默认开启。预览加载或重试成功时会自动调整顺序。": "預設開啟。預覽載入或重試成功時會自動調整順序。"
   }
 };

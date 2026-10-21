@@ -94,7 +94,7 @@ function previewUI(card, item) {
   marker.hidden = item.previewStatus !== 'ready' || !!item.previewPending;
   marker.textContent = origin.label;
   marker.dataset.origin = origin.kind;
-  marker.title = origin.detail + t(' 此标记说明预览来源，实际下载会优先读取原文件。');
+  marker.title = origin.detail + t(' 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。');
   card.querySelector('img').classList.toggle('failed', failed || !!item.previewPending);
   const retry = card.querySelector('.retry-preview');
   retry.hidden = !failed && !item.previewPending;
@@ -499,7 +499,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (changes[TITLE_CLEANUP_KEY]) titleEditor.setCleanup(changes[TITLE_CLEANUP_KEY].newValue === true);
   if (changes[VIEW_FILTERS_KEY]) applyViewFilters(changes[VIEW_FILTERS_KEY].newValue);
-  if (changes[READY_FIRST_KEY]) readyFirst = changes[READY_FIRST_KEY].newValue === true;
+  if (changes[READY_FIRST_KEY]) readyFirst = changes[READY_FIRST_KEY].newValue !== false;
   // Search history is restored on scan/open. Saving it must not interrupt a
   // gesture or replace another panel's current, possibly unfinished search.
   if (Object.keys(changes).every(key => key.startsWith('image-query:v1:') || key === THEME_KEY)) return;

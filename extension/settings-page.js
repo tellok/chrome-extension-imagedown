@@ -64,5 +64,5 @@ await Promise.all(controls.map(async ({ toggle, key, load }) => {
 }));
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
-  for (const { toggle, key } of controls) if (changes[key]) toggle.checked = changes[key].newValue === true;
+  for (const { toggle, key } of controls) if (changes[key]) toggle.checked = key === READY_FIRST_KEY ? changes[key].newValue !== false : changes[key].newValue === true;
 });

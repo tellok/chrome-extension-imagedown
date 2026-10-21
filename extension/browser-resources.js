@@ -9,14 +9,8 @@ export async function browserResources(tabId, items) {
   } catch { return []; }
 }
 
-export async function cachedBrowserResource(tabId, item) {
-  if (!item.browserData || !item.browserOrigin) return null;
-  try {
-    const [result] = await chrome.scripting.executeScript({
-      target: { tabId, documentIds: [item.browserOrigin.documentId] },
-      func: (id, url) => globalThis.__imageTaken?.resource(id)?.url === url,
-      args: [item.browserOrigin.id, item.url],
-    });
-    return result?.documentId === item.browserOrigin.documentId && result.result ? item.browserData : null;
-  } catch { return null; }
+// These bytes already belong to the extension. Source-document validation is
+// required when acquiring them, not when saving them after navigation/closure.
+export function cachedBrowserResource(item) {
+  return item.browserDataURL === item.url ? item.browserData || null : null;
 }

@@ -39,7 +39,7 @@ export async function scanTab(tabId, xpath = '', excludedSelectors = '') {
   for (const resource of resources) {
     const item = unique.get(resource.key);
     if (!item || item.url !== resource.url) continue;
-    Object.assign(item, { browserData: resource.dataUrl, browserOrigin: resource.origin,
+    Object.assign(item, { browserData: resource.dataUrl, browserDataURL: resource.url, browserOrigin: resource.origin,
       bytes: resource.bytes, mime: resource.mime, sizeSource: '浏览器保留的原始资源大小' });
   }
   return { items, frames: frames.filter(f => f.result).length, matchedRoots: frames.reduce((sum, f) => sum + (f.result?.matchedRoots || 0), 0), truncated };
@@ -82,8 +82,28 @@ async function extensionBlob(url, refresh) {
   return new Blob(chunks, { type: mime });
 }
 
-export async function readImage(tabId, item, { refresh = false, preview = false } = {}) {
-  let original = await cachedBrowserResource(tabId, item);
+const originalImages = new WeakMap();
+const readingImages = new WeakMap();
+
+export async function readImage(tabId, item, options = {}) {
+  const cached = originalImages.get(item);
+  if (cached?.url === item.url && !options.refresh) return cached.result;
+  const pending = readingImages.get(item);
+  if (pending?.url === item.url && pending.preview === !!options.preview && !options.refresh) return pending.promise;
+  const url = item.url;
+  const promise = readImageData(tabId, item, options).then(result => {
+    // Page pixels can be a static/reduced thumbnail. Never pass them off as
+    // original bytes, especially for animated GIF/WebP downloads.
+    if (result.method !== 'decoded-pixels' && item.url === url) originalImages.set(item, { url, result });
+    return result;
+  });
+  readingImages.set(item, { url, preview: !!options.preview, promise });
+  try { return await promise; }
+  finally { if (readingImages.get(item)?.promise === promise) readingImages.delete(item); }
+}
+
+async function readImageData(tabId, item, { refresh = false, preview = false } = {}) {
+  let original = cachedBrowserResource(item);
   if (!original) {
     const [resource] = await browserResources(tabId, [item]);
     original = resource?.dataUrl;

@@ -65,6 +65,7 @@ try:
         originals=panel.evaluate('''async tabId=>{
           const api=await import('./api.js');
           const scan=await api.scanTab(tabId);
+          globalThis.localOriginal=scan.items[0];
           const root=await navigator.storage.getDirectory();
           const output=[];
           for(const item of scan.items){
@@ -90,6 +91,7 @@ try:
         fallback=panel.evaluate('''async tabId=>{
           const api=await import('./api.js');const scan=await api.scanTab(tabId);
           const item=scan.items.find(item=>item.url.endsWith('/url-only.gif'));
+          globalThis.localURLItem=item;
           const {blob,method}=await api.readImage(tabId,item);return {method,size:blob.size};
         }''',tab_id)
         assert fallback['method']=='extension-fetch' and fallback['size']==len(GIF),fallback
@@ -105,6 +107,27 @@ try:
         source.goto(f'http://127.0.0.1:{servers[0].server_port}/child')
         result=panel.evaluate('''async ({tabId,item})=>(await(await import('./browser-resources.js')).browserResources(tabId,[item])).length''',{'tabId':tab_id,'item':stale})
         assert result==0,result
+        source.close()
+        before_local_downloads=dict(counts)
+        local_downloads=panel.evaluate('''async tabId=>{
+          const api=await import('./api.js');
+          const root=await navigator.storage.getDirectory();
+          const messaging=chrome.runtime.sendMessage, scripting=chrome.scripting.executeScript;
+          chrome.runtime.sendMessage=()=>{throw new Error('Local download must not request browser resources')};
+          chrome.scripting.executeScript=()=>{throw new Error('Local download must not access the closed source page')};
+          try {
+            const results=[];
+            for(const item of [localOriginal,localURLItem]) {
+              const result=await api.downloadImage(tabId,item,item.order,'original',{directory:root,folder:'test'});
+              const saved=await(await root.getFileHandle(result.savedName)).getFile();
+              results.push(Array.from(new Uint8Array(await saved.arrayBuffer())));
+            }
+            return results;
+          } finally {chrome.runtime.sendMessage=messaging;chrome.scripting.executeScript=scripting;}
+        }''',tab_id)
+        assert len(local_downloads)==2
+        assert all(bytes(data)==GIF and Image.open(io.BytesIO(bytes(data))).n_frames==2 for data in local_downloads)
+        assert counts==before_local_downloads,(counts,before_local_downloads)
         assert not errors,errors
         context.close()
         print({'cross_origin_originals':2,'animated_gif_bytes':len(GIF),'requests_for_loaded_images':loaded_counts,'fallback':fallback['method'],'session_released':True,'stale_documents_rejected':True})

@@ -2,7 +2,7 @@ export const TITLE_CLEANUP_KEY = 'settings:auto-clean-title';
 export const READY_FIRST_KEY = 'settings:ready-first';
 
 export async function loadReadyFirst() {
-  return (await chrome.storage.local.get(READY_FIRST_KEY))[READY_FIRST_KEY] === true;
+  return (await chrome.storage.local.get(READY_FIRST_KEY))[READY_FIRST_KEY] !== false;
 }
 
 export async function loadTitleCleanup() {
