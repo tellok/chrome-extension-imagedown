@@ -11,6 +11,8 @@ globalThis.addEventListener('imagetaken-languagechange', event => {
   })().catch(console.error);
 });
 import { downloadTargetKey } from './browser-downloads.js';
+import { registerDebuggerReader } from './debugger-reader.js';
+registerDebuggerReader();
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
 chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(console.error);

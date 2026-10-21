@@ -2,8 +2,9 @@ import { t } from './i18n.js';
 import { readImage } from './api.js';
 
 export function previewOrigin(item) {
-  const method = item.retryPreview ? item.previewMethod : item.preview ? (item.kind === 'canvas' ? 'canvas' : 'decoded-pixels') :
+  const method = item.retryPreview ? item.previewMethod : item.browserData ? 'debugger-resource' : item.preview ? (item.kind === 'canvas' ? 'canvas' : 'decoded-pixels') :
     /^(data:|blob:)/.test(item.url) ? 'embedded' : 'url';
+  if (method === 'debugger-resource') return { kind: 'page', label: t('浏览器资源'), detail: t('直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。') };
   if (method === 'page-cache') return { kind: 'page', label: t('页面提取'), detail: t('预览读取自页面已有缓存中的原文件。') };
   if (['canvas', 'decoded-pixels', 'embedded', 'page-blob'].includes(method)) {
     const detail = method === 'canvas' ? t('预览提取自页面画布。') : method === 'decoded-pixels' ? t('预览直接提取自页面已显示图片的像素，可能是静态缩略图。') : t('预览读取自页面内嵌数据或 Blob。');

@@ -255,7 +255,11 @@ export const catalogs = {
     "默认跟随系统，浅色和深色也可以单独选择。": "Follow the system by default, or choose light or dark.",
     "网页已显示图片，但跨域限制阻止读取页面像素，因此使用图片 URL 加载；可能命中缓存，并不代表重新下载。": "The image is visible on the page, but cross-origin protection blocks pixel extraction. Loaded by URL; it may use cache rather than download again.",
     "批量页面预览数据已达上限，因此使用图片 URL 加载；可能命中缓存。": "The batch page-preview data limit was reached. URL loading may use cache.",
-    "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。": "Page pixels could not be extracted. URL loading may use cache."
+    "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。": "Page pixels could not be extracted. URL loading may use cache.",
+    "浏览器资源": "Browser resource",
+    "浏览器资源 · 原文件": "Browser resource · Original file",
+    "浏览器保留的原始资源大小": "Original resource size retained by the browser",
+    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "Read original image data retained by the browser without requesting the image URL again."
   },
   "ja": {
     " · 失败 {0}": " · 失敗 {0}",
@@ -512,7 +516,11 @@ export const catalogs = {
     "默认跟随系统，浅色和深色也可以单独选择。": "既定ではシステムに合わせます。ライト・ダークも個別に選べます。",
     "网页已显示图片，但跨域限制阻止读取页面像素，因此使用图片 URL 加载；可能命中缓存，并不代表重新下载。": "ページに表示されていますが、クロスオリジン制限でピクセルを抽出できません。URL 読み込みでもキャッシュを使う場合があります。",
     "批量页面预览数据已达上限，因此使用图片 URL 加载；可能命中缓存。": "ページプレビューのデータ上限に達しました。URL 読み込みでキャッシュを使う場合があります。",
-    "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。": "ページ画像のピクセルを抽出できません。URL 読み込みでキャッシュを使う場合があります。"
+    "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。": "ページ画像のピクセルを抽出できません。URL 読み込みでキャッシュを使う場合があります。",
+    "浏览器资源": "ブラウザーリソース",
+    "浏览器资源 · 原文件": "ブラウザーリソース · 元ファイル",
+    "浏览器保留的原始资源大小": "ブラウザーに保持された元リソースのサイズ",
+    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "画像 URL に再リクエストせず、ブラウザーに保持された元画像データを直接読み取りました。"
   },
   "de": {
     " · 失败 {0}": " · Fehlgeschlagen {0}",
@@ -769,7 +777,11 @@ export const catalogs = {
     "默认跟随系统，浅色和深色也可以单独选择。": "Standardmäßig dem System folgen oder Hell bzw. Dunkel wählen.",
     "网页已显示图片，但跨域限制阻止读取页面像素，因此使用图片 URL 加载；可能命中缓存，并不代表重新下载。": "Das Bild ist sichtbar, aber der Schutz fremder Ursprünge verhindert das Auslesen der Pixel. Laden per URL kann den Cache nutzen.",
     "批量页面预览数据已达上限，因此使用图片 URL 加载；可能命中缓存。": "Das Datenlimit für Seitenvorschauen wurde erreicht. Laden per URL kann den Cache nutzen.",
-    "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。": "Seitenpixel konnten nicht ausgelesen werden. Laden per URL kann den Cache nutzen."
+    "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。": "Seitenpixel konnten nicht ausgelesen werden. Laden per URL kann den Cache nutzen.",
+    "浏览器资源": "Browser-Ressource",
+    "浏览器资源 · 原文件": "Browser-Ressource · Originaldatei",
+    "浏览器保留的原始资源大小": "Im Browser gespeicherte Originalressourcengröße",
+    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "Originalbilddaten direkt aus dem Browser gelesen, ohne die Bild-URL erneut anzufordern."
   },
   "ko": {
     " · 失败 {0}": " · 실패 {0}",
@@ -1026,7 +1038,11 @@ export const catalogs = {
     "默认跟随系统，浅色和深色也可以单独选择。": "기본적으로 시스템 설정을 따르며 밝게 또는 어둡게를 직접 선택할 수 있습니다.",
     "网页已显示图片，但跨域限制阻止读取页面像素，因此使用图片 URL 加载；可能命中缓存，并不代表重新下载。": "페이지에 표시된 이미지지만 교차 출처 제한으로 픽셀을 읽을 수 없습니다. URL 로드도 캐시를 사용할 수 있으며 재다운로드를 의미하지 않습니다.",
     "批量页面预览数据已达上限，因此使用图片 URL 加载；可能命中缓存。": "일괄 페이지 미리보기 데이터 한도에 도달했습니다. URL 로드는 캐시를 사용할 수 있습니다.",
-    "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。": "페이지 이미지 픽셀을 추출할 수 없습니다. URL 로드는 캐시를 사용할 수 있습니다."
+    "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。": "페이지 이미지 픽셀을 추출할 수 없습니다. URL 로드는 캐시를 사용할 수 있습니다.",
+    "浏览器资源": "브라우저 리소스",
+    "浏览器资源 · 原文件": "브라우저 리소스 · 원본 파일",
+    "浏览器保留的原始资源大小": "브라우저에 보관된 원본 리소스 크기",
+    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "이미지 URL을 다시 요청하지 않고 브라우저에 보관된 원본 이미지 데이터를 직접 읽었습니다."
   },
   "fr": {
     " · 失败 {0}": " · Échecs {0}",
@@ -1283,7 +1299,11 @@ export const catalogs = {
     "默认跟随系统，浅色和深色也可以单独选择。": "Suit le système par défaut, ou choisissez le mode clair ou sombre.",
     "网页已显示图片，但跨域限制阻止读取页面像素，因此使用图片 URL 加载；可能命中缓存，并不代表重新下载。": "L’image est visible, mais la protection entre origines empêche l’extraction des pixels. Le chargement par URL peut utiliser le cache, sans nouveau téléchargement.",
     "批量页面预览数据已达上限，因此使用图片 URL 加载；可能命中缓存。": "La limite de données des aperçus est atteinte. Le chargement par URL peut utiliser le cache.",
-    "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。": "Impossible d’extraire les pixels de la page. Le chargement par URL peut utiliser le cache."
+    "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。": "Impossible d’extraire les pixels de la page. Le chargement par URL peut utiliser le cache.",
+    "浏览器资源": "Ressource du navigateur",
+    "浏览器资源 · 原文件": "Ressource du navigateur · Fichier original",
+    "浏览器保留的原始资源大小": "Taille de la ressource originale conservée par le navigateur",
+    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "Données originales lues dans le navigateur sans nouvelle requête vers l’URL de l’image."
   },
   "zh-CN": {
     " · 失败 {0}": " · 失败 {0}",
@@ -1540,7 +1560,11 @@ export const catalogs = {
     "默认跟随系统，浅色和深色也可以单独选择。": "默认跟随系统，浅色和深色也可以单独选择。",
     "网页已显示图片，但跨域限制阻止读取页面像素，因此使用图片 URL 加载；可能命中缓存，并不代表重新下载。": "网页已显示图片，但跨域限制阻止读取页面像素，因此使用图片 URL 加载；可能命中缓存，并不代表重新下载。",
     "批量页面预览数据已达上限，因此使用图片 URL 加载；可能命中缓存。": "批量页面预览数据已达上限，因此使用图片 URL 加载；可能命中缓存。",
-    "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。": "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。"
+    "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。": "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。",
+    "浏览器资源": "浏览器资源",
+    "浏览器资源 · 原文件": "浏览器资源 · 原文件",
+    "浏览器保留的原始资源大小": "浏览器保留的原始资源大小",
+    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。"
   },
   "zh-TW": {
     " · 失败 {0}": " · 失敗 {0}",
@@ -1797,6 +1821,10 @@ export const catalogs = {
     "默认跟随系统，浅色和深色也可以单独选择。": "預設跟隨系統，也可以單獨選擇淺色或深色。",
     "网页已显示图片，但跨域限制阻止读取页面像素，因此使用图片 URL 加载；可能命中缓存，并不代表重新下载。": "網頁已顯示圖片，但跨來源限制阻止讀取頁面像素，因此使用圖片 URL 載入；可能命中快取，並不代表重新下載。",
     "批量页面预览数据已达上限，因此使用图片 URL 加载；可能命中缓存。": "批次頁面預覽資料已達上限，因此使用圖片 URL 載入；可能命中快取。",
-    "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。": "無法擷取頁面圖片像素，因此使用圖片 URL 載入；可能命中快取。"
+    "无法提取页面图片像素，因此使用图片 URL 加载；可能命中缓存。": "無法擷取頁面圖片像素，因此使用圖片 URL 載入；可能命中快取。",
+    "浏览器资源": "瀏覽器資源",
+    "浏览器资源 · 原文件": "瀏覽器資源 · 原始檔案",
+    "浏览器保留的原始资源大小": "瀏覽器保留的原始資源大小",
+    "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "直接讀取瀏覽器保留的原始圖片資料，沒有透過圖片 URL 重新請求。"
   }
 };

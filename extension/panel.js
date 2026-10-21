@@ -302,7 +302,7 @@ function render() {
         if (filters().width || filters().height || filters().minBytes || filters().sort !== 'position') scheduleRender();
       }
     });
-    if (item.previewStatus !== 'error' && !item.previewPending) image.src = item.retryPreview || item.preview || item.url;
+    if (item.previewStatus !== 'error' && !item.previewPending) image.src = item.retryPreview || item.browserData || item.preview || item.url;
     card.querySelector('.dimensions').textContent = item.width && item.height ? `${Math.round(item.width)} × ${Math.round(item.height)}` : t('尺寸未知');
     card.querySelector('.type-badge').textContent = imageType(item) === 'unknown' ? '?' : imageType(item);
     card.querySelector('.source-badge').textContent = t(sourceLabels[item.sources[0]] || item.sources[0]);

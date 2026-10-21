@@ -4,6 +4,7 @@ import { prepareMetadata } from './metadata.js';
 import { writeImage } from './destination.js';
 import { saveBrowserDownload as save } from './browser-downloads.js';
 import { contentHash } from './file-content.js';
+import { browserResources, cachedBrowserResource } from './browser-resources.js';
 
 export async function scanTab(tabId, xpath = '', excludedSelectors = '') {
   // DevTools XPath is relative to the top document. Never leak unscoped iframe images.
@@ -33,7 +34,15 @@ export async function scanTab(tabId, xpath = '', excludedSelectors = '') {
       } else unique.set(key, { ...item, key, origins: [origin], order: unique.size });
     }
   }
-  return { items: await prepareMetadata([...unique.values()]), frames: frames.filter(f => f.result).length, matchedRoots: frames.reduce((sum, f) => sum + (f.result?.matchedRoots || 0), 0), truncated };
+  const items = await prepareMetadata([...unique.values()]);
+  const resources = await browserResources(tabId, items);
+  for (const resource of resources) {
+    const item = unique.get(resource.key);
+    if (!item || item.url !== resource.url) continue;
+    Object.assign(item, { browserData: resource.dataUrl, browserOrigin: resource.origin,
+      bytes: resource.bytes, mime: resource.mime, sizeSource: '浏览器保留的原始资源大小' });
+  }
+  return { items, frames: frames.filter(f => f.result).length, matchedRoots: frames.reduce((sum, f) => sum + (f.result?.matchedRoots || 0), 0), truncated };
 }
 
 async function pageData(tabId, item, refresh, preview) {
@@ -74,6 +83,12 @@ async function extensionBlob(url, refresh) {
 }
 
 export async function readImage(tabId, item, { refresh = false, preview = false } = {}) {
+  let original = await cachedBrowserResource(tabId, item);
+  if (!original) {
+    const [resource] = await browserResources(tabId, [item]);
+    original = resource?.dataUrl;
+  }
+  if (original) return { blob: await (await fetch(original)).blob(), method: 'debugger-resource' };
   let pageError;
   try {
     const result = await pageData(tabId, item, refresh, preview);

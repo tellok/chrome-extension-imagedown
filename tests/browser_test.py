@@ -817,7 +817,7 @@ def main():
             boundary = panel.locator('.card').filter(has=panel.locator('.image-url', has_text='boundary.png'))
             expect(boundary.locator('.image-size')).to_have_text('2.0 KiB')
             expect(boundary.locator('.preview-origin')).to_be_visible()
-            expect(boundary.locator('.preview-origin')).to_have_text('页面提取')
+            expect(boundary.locator('.preview-origin')).to_have_text('浏览器资源')
             expect(panel.locator('.card .image-url').filter(has_text='missing.png')).to_have_count(1)
             panel.locator('#filters').evaluate('(el) => el.open = true')
             panel.locator('#min-width').fill('321')
@@ -857,7 +857,7 @@ def main():
             assert urls[other + '/cross.png']['loaded'] is True
             assert urls[other + '/cross.png']['previewIssue'] == 'cross-origin'
             assert not urls[other + '/cross.png']['preview']
-            # Preview retries reuse displayed pixels even when the URL is now
+            # Preview retries reuse original browser bytes even when the URL is now
             # expired. They must not make a fresh request to the image server.
             before_preview = COUNTS.get('/once.png', 0)
             preview = panel.evaluate("""async ({tabId,item}) => {
@@ -865,7 +865,7 @@ def main():
               URL.revokeObjectURL(preview.url);
               return preview;
             }""", {'tabId':tab_id,'item':urls[origin + '/once.png']})
-            assert preview['method'] == 'decoded-pixels' and preview['bytes'] > 0, preview
+            assert preview['method'] == 'debugger-resource' and preview['bytes'] > 0, preview
             assert (preview['width'], preview['height']) == (640, 420), preview
             assert COUNTS.get('/once.png', 0) == before_preview, 'preview retry requested an already displayed image'
 
@@ -878,15 +878,15 @@ def main():
                 }''', {'tabId': tab_id, 'item': item})
 
             normal = read(urls[origin + '/cached.png'])
-            assert normal['method'] == 'page-cache', {k:v for k,v in normal.items() if k != 'data'}
+            assert normal['method'] == 'debugger-resource', {k:v for k,v in normal.items() if k != 'data'}
             assert bytes(normal['data']) == PNG, 'cache bytes must exactly match original'
             expired = read(urls[origin + '/once.png'])
-            assert expired['method'] == 'decoded-pixels', expired
+            assert expired['method'] == 'debugger-resource', expired
             assert Image.open(io.BytesIO(bytes(expired['data']))).size == (640, 420)
             auth = read(urls[origin + '/auth.png'])
             assert bytes(auth['data']) == PNG, 'authenticated image failed'
             cross = read(urls[other + '/cross.png'])
-            assert cross['method'] == 'extension-fetch', cross
+            assert cross['method'] == 'debugger-resource', cross
             assert bytes(cross['data']) == PNG
             blob_items = [item for item in items if item['url'].startswith('blob:')]
             assert len(blob_items) == 2
@@ -895,9 +895,9 @@ def main():
             assert read(canvases[0])['method'] == 'canvas'
             assert 'error' in read(canvases[1]), 'tainted canvas must fail explicitly'
             denied = read(urls[other + '/denied.png'])
-            assert 'error' in denied, 'protected cross-origin image must not pretend to be readable'
+            assert denied['method'] == 'debugger-resource' and bytes(denied['data']) == PNG, 'retained protected image must reuse original browser bytes'
             assert 'error' in read(urls[origin + '/missing.png'])
-            assert read(urls[other + '/frame-only.png'])['method'] == 'page-cache'
+            assert read(urls[other + '/frame-only.png'])['method'] == 'debugger-resource'
             # A second open view must not invalidate the first view's Blob reads.
             panel.evaluate('''async tabId => (await import('./api.js')).scanTab(tabId)''', tab_id)
             assert {read(item)['method'] for item in blob_items} == {'page-blob', 'decoded-pixels'}
@@ -927,7 +927,7 @@ def main():
             expect(panel.locator('#selection-count')).to_have_text('已选择 1 张')
             panel.locator('#download').click()
             expect(panel.locator('#notice')).to_have_text('1 张图片已下载到「ImageTaken 测试图片集」文件夹。', timeout=20000)
-            expect(panel.locator('.item-status')).to_contain_text('页面缓存')
+            expect(panel.locator('.item-status')).to_contain_text('浏览器资源 · 原文件')
             expect(panel.locator('#show-download')).to_be_visible()
             panel.locator('#select-all').uncheck()
             panel.locator('#query').fill('blob:')

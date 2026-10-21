@@ -23,3 +23,11 @@ test('URL previews explain why an already displayed image could not be extracted
   assert.match(previewOrigin(item).detail, /不代表重新下载/);
   assert.equal(previewOrigin({ ...item, preview: 'data:image/png;base64,x' }).kind, 'page');
 });
+
+ test('browser resource markers distinguish original browser bytes', () => {
+  const source = previewOrigin({ browserData: 'data:image/gif;base64,x' });
+  assert.equal(source.kind, 'page');
+  assert.equal(source.label, '浏览器资源');
+  assert.match(source.detail, /原始图片数据/);
+  assert.equal(previewOrigin({ retryPreview: 'blob:retry', previewMethod: 'debugger-resource' }).label, '浏览器资源');
+});

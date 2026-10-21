@@ -9,7 +9,8 @@
     "scripting",
     "downloads",
     "sidePanel",
-    "storage"
+    "storage",
+    "debugger"
   ],
   "host_permissions": [
     "http://*/*",

@@ -55,6 +55,7 @@ export function filterImages(items, filters, sizeOf = item => ({ bytes: Number.i
 }
 
 export const METHOD_LABELS = {
+  'debugger-resource': '浏览器资源 · 原文件',
   'page-cache': '页面缓存 · 原文件',
   'page-fetch': '页面读取 · 原文件',
   'page-blob': '页面 Blob · 原文件',

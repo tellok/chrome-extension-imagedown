@@ -275,5 +275,9 @@
     } catch (error) { errors.push(error.message); }
     return { error: [...new Set(errors)].join('；') || '页面无法读取原图数据' };
   }
-  globalThis.__imageTaken = { scan, read };
+  const resource = id => {
+    const record = records.get(id) || history.find(generation => generation.has(id))?.get(id);
+    return record ? { url: record.url } : null;
+  };
+  globalThis.__imageTaken = { scan, read, resource };
 })();
