@@ -1,6 +1,23 @@
 import { t } from './i18n.js';
 import { DEFAULT_THRESHOLDS, THRESHOLD_KEYS, normalizeThreshold, ignoreStorageKey } from './metadata.js';
 
+export const VIEW_FILTERS_KEY = 'filters:view:v1';
+export function normalizeViewFilters(value = {}) {
+  const types = ['', 'jpg', 'png', 'webp', 'gif', 'svg', 'avif', 'bmp', 'ico', 'unknown'];
+  const sources = ['', 'img', 'css', 'pseudo', 'canvas', 'svg', 'lazy', 'srcset', 'resource', 'poster', 'link'];
+  return {
+    type: types.includes(value?.type) ? value.type : '',
+    source: sources.includes(value?.source) ? value.source : '',
+    loaded: value?.loaded === true, showIgnored: value?.showIgnored === true,
+  };
+}
+export async function loadViewFilters() {
+  return normalizeViewFilters((await chrome.storage.local.get(VIEW_FILTERS_KEY))[VIEW_FILTERS_KEY]);
+}
+export function saveViewFilters(value) {
+  return chrome.storage.local.set({ [VIEW_FILTERS_KEY]: normalizeViewFilters(value) });
+}
+
 let queryWrites = Promise.resolve();
 export function queryStorageKey(domain) { return `image-query:v1:${domain}`; }
 export async function loadQuery(domain) {

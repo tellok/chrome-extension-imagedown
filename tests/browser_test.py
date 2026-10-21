@@ -240,10 +240,10 @@ def test_preview_retries(context, worker, extension_id, origin, output):
     assert COUNTS['/retry-one.png'] > before
     assert all(path == '/retry-one.png?signature=demo%2Bvalue' for path in RETRY_PATHS if path.startswith('/retry-one.png'))
     expect(panel.locator('#retry-failed')).to_have_text('↻ 重试所有失败图片 (4)')
-    panel.wait_for_function('async id => await chrome.action.getBadgeText({tabId:id}) === "1"', arg=tab_id)
+    panel.wait_for_function('async id => await chrome.action.getBadgeText({tabId:id}) === "0"', arg=tab_id)
     panel.wait_for_function('''async id => {
       const title = await chrome.action.getTitle({tabId:id});
-      return title.includes('成功加载 1 张') && title.includes('预览失败 4 张');
+      return title.includes('成功加载 0 张');
     }''', arg=tab_id)
     expect(panel.locator('#select-all')).to_be_checked()
     expect(panel.locator('#select-all')).to_be_enabled()
@@ -302,7 +302,7 @@ def test_preview_retries(context, worker, extension_id, origin, output):
     assert all(COUNTS.get(name, 0) == count for name, count in counts.items())
     expect(panel.locator('#selection-count')).to_have_text('已选择 1 张')
     panel.set_viewport_size({'width': 420, 'height': 1100})
-    panel.wait_for_function('async id => await chrome.action.getBadgeText({tabId:id}) === "3"', arg=tab_id)
+    panel.wait_for_function('async id => await chrome.action.getBadgeText({tabId:id}) === "0"', arg=tab_id)
     assert worker.evaluate('id => chrome.action.getBadgeBackgroundColor({tabId:id})', tab_id) == [220, 38, 38, 255]
     panel.evaluate('scrollTo(0, 0)')
     panel.screenshot(path=str(output / 'preview-retries.png'))
@@ -318,7 +318,7 @@ def test_preview_retries(context, worker, extension_id, origin, output):
     panel.close()
     # Closed views release badge ownership; other tabs and new documents
     # count loaded page images without opening another panel.
-    assert worker.evaluate('id => chrome.action.getBadgeText({tabId:id})', tab_id) == '3'
+    assert worker.evaluate('id => chrome.action.getBadgeText({tabId:id})', tab_id) == '0'
     separate = context.new_page()
     separate.goto(origin + '/frame?badge')
     separate_id = worker.evaluate("async () => (await chrome.tabs.query({})).find(tab => tab.url?.endsWith('/frame?badge')).id")
@@ -350,7 +350,7 @@ def test_site_scopes(context, worker, extension_id, origin, output):
     panel.locator('#excluded-selectors').fill('.img-xxx\n.ad')
     panel.locator('#apply-xpath').click()
     expect(panel.locator('.page-context')).to_have_attribute('data-frames', '1')
-    expect(panel.locator('#total')).to_have_text('2')
+    expect(panel.locator('#xpath-status')).to_contain_text('提取 2 张图片')
     expect(panel.locator('#active-xpath')).to_have_text('//*[@id="scope"]')
     expect(panel.locator('#active-css')).to_have_text('.img-xxx\n.ad')
     for width in (320, 1100):
@@ -375,10 +375,10 @@ def test_site_scopes(context, worker, extension_id, origin, output):
     panel.locator('#xpath').fill('/html/body/section[@id="scope"]/img[2]')
     expect(panel.locator('#active-xpath')).to_have_text('//*[@id="scope"]')
     panel.locator('#apply-xpath').click()
-    expect(panel.locator('#total')).to_have_text('1')
+    expect(panel.locator('#xpath-status')).to_contain_text('提取 1 张图片')
     panel.locator('#xpath').fill('//*[@id="no-match"]')
     panel.locator('#apply-xpath').click()
-    expect(panel.locator('#total')).to_have_text('0')
+    expect(panel.locator('#xpath-status')).to_contain_text('提取 0 张图片')
     expect(panel.locator('#notice')).to_contain_text('XPath 未匹配')
     panel.locator('#xpath').fill('//*[')
     panel.locator('#apply-xpath').click()
@@ -474,7 +474,9 @@ def test_notion_layout(panel, output):
     panel.locator('#query').fill('')
     expect(panel.locator('.card')).not_to_have_count(0)
     panel.locator('#filters').evaluate('(el) => el.open = false')
-    assert panel.locator('.hero-illustration').evaluate('(img) => img.complete && img.naturalWidth > 0')
+    expect(panel.locator('.intro, #total, .hero-illustration')).to_have_count(0)
+    expect(panel.locator('header #page-host.breadcrumb-page')).to_contain_text('127.0.0.1')
+    expect(panel.locator('.page-context #page-host')).to_have_count(0)
     assert panel.locator('.brand .logo').evaluate('(img) => img.complete && img.naturalWidth > 0')
     for width in (320, 360, 420, 1100):
         panel.set_viewport_size({'width': width, 'height': 1000})
@@ -522,7 +524,7 @@ def test_title_editor(panel):
     panel.locator('#title-display').click()
     expect(panel.locator('#title-input')).to_have_value('编辑后的标题')
     panel.locator('#title-input').fill('点击外部确认')
-    panel.locator('h2').click()
+    panel.locator('.strategy').click()
     expect(panel.locator('#page-title')).to_have_text('点击外部确认')
     panel.locator('#refresh').click()
     expect(panel.locator('.page-context')).to_have_attribute('data-frames', '2')

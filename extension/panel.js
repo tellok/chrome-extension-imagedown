@@ -4,12 +4,12 @@ import { THEME_KEY } from './theme.js';
 import { scanTab, downloadImage } from './api.js';
 import { filterImages, imageType, METHOD_LABELS } from './lib.js';
 import { DEFAULT_THRESHOLDS, THRESHOLD_KEYS, normalizeThreshold, siteDomain, ignoreStorageKey, imageSize, formatBytes } from './metadata.js';
-import { loadThresholds, saveThresholds, loadIgnored, setIgnored, loadXPath, xpathStorageKey, loadExclusions, exclusionsStorageKey, loadQuery, saveQuery } from './preferences.js';
+import { loadThresholds, saveThresholds, loadIgnored, setIgnored, loadXPath, xpathStorageKey, loadExclusions, exclusionsStorageKey, loadQuery, saveQuery, VIEW_FILTERS_KEY, loadViewFilters, saveViewFilters, normalizeViewFilters } from './preferences.js';
 import { loadPreview, previewOrigin } from './previews.js';
 import { bindGallerySelection } from './selection.js';
 import { bindTitleEditor } from './title-editor.js';
 import { loadDirectory, saveDirectory, chooseDirectory, prepareDestination, directoryChanged } from './destination.js';
-import { createBadgeReporter } from './badge.js';
+import { createBadgeBinding } from './badge.js';
 import { TITLE_CLEANUP_KEY, loadTitleCleanup, READY_FIRST_KEY, loadReadyFirst } from './settings.js';
 
 const $ = id => document.getElementById(id);
@@ -21,9 +21,8 @@ let lastDownloadId = null;
 let queryRevision = 0;
 let panelTabId = null, sourceLoading = false;
 let readyFirst = false, previewOrderTimer;
-const reportBadge = createBadgeReporter(() => ({
-  tabIds: [...new Set([state.tab?.id, panelTabId].filter(Number.isInteger))],
-  items: visible(), total: state.items.length, scanning: state.scanning || sourceLoading,
+const reportBadge = createBadgeBinding(() => ({
+  sourceTabId: state.tab?.id, panelTabId,
 }));
 const titleEditor = bindTitleEditor($('title-editor'), { onChange: updateDestinationUI });
 const cancelSelectionGesture = bindGallerySelection($('gallery'), {
@@ -89,6 +88,7 @@ function previewUI(card, item) {
     card.classList.remove('selected');
   }
   card.querySelector('.preview-fallback').hidden = item.previewStatus === 'ready' && !item.previewPending;
+  card.querySelector('.preview-fallback use').setAttribute('href', failed && !item.previewPending ? '#icon-image-broken' : '#icon-image');
   const marker = card.querySelector('.preview-origin');
   const origin = previewOrigin(item);
   marker.hidden = item.previewStatus !== 'ready' || !!item.previewPending;
@@ -265,7 +265,6 @@ function render() {
     $(id).classList.toggle('unconfigured', !value);
   }
   const items = visible();
-  $('total').textContent = state.items.length;
   $('visible-count').textContent = t(`{0} 张图片`, items.length);
   const f = filters();
   const count = [f.width, f.height, f.minBytes, f.type, f.source, f.loaded, f.showIgnored].filter(Boolean).length;
@@ -350,6 +349,7 @@ async function refresh(tab = state.tab) {
   $('progress').textContent = t('下载时自动创建标题文件夹');
   titleEditor.setPage(tab);
   try { $('page-host').textContent = new URL(tab.url).host; } catch { $('page-host').textContent = tab.url || ''; }
+  $('page-host').title = $('page-host').textContent;
   delete document.querySelector('.page-context').dataset.frames;
   notice(''); render();
   try {
@@ -472,10 +472,20 @@ for (const [field, id] of Object.entries(thresholdInputs)) {
     void saveThresholds({ [field]: value }).catch(error => notice(t(`筛选设置保存失败：{0}`, error.message), true));
   });
 }
-for (const id of ['type', 'source', 'loaded', 'sort', 'show-ignored']) $(id).addEventListener('change', render);
+function applyViewFilters(value) {
+  const view = normalizeViewFilters(value);
+  $('type').value = view.type; $('source').value = view.source;
+  $('loaded').checked = view.loaded; $('show-ignored').checked = view.showIgnored;
+}
+for (const id of ['type', 'source', 'loaded', 'show-ignored']) $(id).addEventListener('change', () => {
+  render();
+  void saveViewFilters(filters()).catch(error => notice(error.message, true));
+});
+$('sort').addEventListener('change', render);
 $('reset').addEventListener('click', () => {
   for (const id of ['query', 'min-width', 'min-height', 'min-size', 'type', 'source']) $(id).value = '';
   $('loaded').checked = false; $('show-ignored').checked = false; render();
+  void saveViewFilters(filters()).catch(error => notice(error.message, true));
   queryRevision++;
   void saveQuery(state.domain, '').catch(error => notice(t(`搜索内容清除失败：{0}`, error.message), true));
   void saveThresholds({ width: 0, height: 0, minBytes: 0 }).catch(error => notice(error.message, true));
@@ -488,6 +498,7 @@ $('defaults').addEventListener('click', () => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (changes[TITLE_CLEANUP_KEY]) titleEditor.setCleanup(changes[TITLE_CLEANUP_KEY].newValue === true);
+  if (changes[VIEW_FILTERS_KEY]) applyViewFilters(changes[VIEW_FILTERS_KEY].newValue);
   if (changes[READY_FIRST_KEY]) readyFirst = changes[READY_FIRST_KEY].newValue === true;
   // Search history is restored on scan/open. Saving it must not interrupt a
   // gesture or replace another panel's current, possibly unfinished search.
@@ -584,6 +595,7 @@ try {
   if (pinnedId) panelTabId = (await chrome.tabs.getCurrent())?.id ?? null;
   await reloadDirectory();
   applyThresholds(await loadThresholds());
+  applyViewFilters(await loadViewFilters());
   const tab = pinnedId ? await chrome.tabs.get(pinnedId) : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
   await refresh(tab);
 } catch (error) { notice(error.message, true); }

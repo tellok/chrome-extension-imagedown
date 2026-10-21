@@ -103,12 +103,6 @@ main { max-width: 1220px; margin: auto; padding: 17px 20px 30px; }
 #confirm-title:hover { background: var(--confirm-hover); }
 #cancel-title:hover { background: var(--cancel-hover); }
 .page-context p { margin: 0; font-size: 11px; font-weight: 450; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-#page-host { display: block; color: var(--subtle); font-size: 10px; margin-top: 3px; }
-.intro { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 12px; }
-.heading-copy { min-width: 0; }
-h2 { font-size: 29px; font-weight: 720; letter-spacing: -1px; line-height: 1.35; margin: 0; }
-h2 span { display: inline-block; vertical-align: middle; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: var(--counter); color: var(--muted); font-size: 12px; font-weight: 450; letter-spacing: 0; }
-.hero-illustration { display: block; width: 90px; height: 72px; object-fit: contain; flex-shrink: 0; }
 .strategy { color: var(--muted); font-size: 11px; line-height: 1.7; margin: 4px 0 12px; }
 .strategy span { margin: 0 5px; color: var(--faint); }
 .search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--input-border); border-radius: 5px; padding: 0 10px; height: 36px; background: var(--surface); }
@@ -222,8 +216,6 @@ footer>.hint { text-align: center; margin-bottom: 0; }
   header { padding: 0 max(32px, calc((100vw - 1130px) / 2)); height: 52px; }
   main { padding: 25px 45px 45px; }
   .page-context { padding-bottom: 17px; }
-  h2 { font-size: 32px; }
-  .hero-illustration { width: 104px; height: 80px; }
   .strategy { font-size: 12px; }
   .gallery { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
   .filter-fields { grid-template-columns: repeat(5, 1fr); }
@@ -239,10 +231,6 @@ footer>.hint { text-align: center; margin-bottom: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; }
-}
-@media (max-width: 380px) {
-  h2 { font-size: 25px; }
-  .hero-illustration { width: 72px; height: 60px; }
 }
 
 .xpath-settings { margin: 12px 0; padding: 12px; border: 1px solid var(--border); border-radius: 5px; }
@@ -380,7 +368,7 @@ footer>.hint { text-align: center; margin-bottom: 0; }
   }
 }
 
-.hero-illustration, .empty-illustration { filter: var(--illustration-filter); }
+.empty-illustration { filter: var(--illustration-filter); }
 
 .selection-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; min-width: 0; }
 #selection-count { font-size: 10px; color: var(--muted); overflow-wrap: anywhere; }

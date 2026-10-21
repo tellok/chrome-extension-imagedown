@@ -54,7 +54,7 @@ try:
                         expect(settings.locator('html')).to_have_attribute('lang', language)
                         expect(settings.locator('h2')).to_have_text(catalogs[language]['设置'])
                         expect(panel.locator('html')).to_have_attribute('lang', language)
-                        expect(panel.locator('.breadcrumb-page')).to_have_text(catalogs[language]['图片库'])
+                        expect(panel.locator('.breadcrumb-page')).to_have_text(source.url.split('/')[2])
                         expect(panel.locator('#site-rules-count')).to_have_text(catalogs[language]['未启用'])
                         expect(panel.locator('#download')).to_have_text(catalogs[language]['下载所选图片'])
                         expect(panel.locator('#page-title')).to_have_text(user_title)

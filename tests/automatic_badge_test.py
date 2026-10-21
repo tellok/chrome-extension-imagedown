@@ -83,20 +83,60 @@ try:
             return exports===0 && __imageTaken.resource(item.id)?.url===item.url;
           }});return result.result;
         }''',tab_id), 'passive scans exported pixels or invalidated existing read references'
-        # Panel owns transient filtered counts; closed panels release ownership.
+        # Every configured exclusion applies before a panel is opened.
+        worker.evaluate("chrome.storage.local.set({'excluded-selectors:v1:127.0.0.1':'img[src=\"/one.png\"]'})")
+        badge('3')
+        worker.evaluate("chrome.storage.local.set({'image-query:v1:127.0.0.1':'shadow.png'})")
+        badge('1')
+        worker.evaluate("chrome.storage.local.remove(['excluded-selectors:v1:127.0.0.1','image-query:v1:127.0.0.1'])")
+        badge('4')
+        one_hash=worker.evaluate('''async tabId=>{
+          const [{result}] = await chrome.scripting.executeScript({target:{tabId},func:()=>__imageTaken.scan('','',true).items.find(i=>i.url.endsWith('/one.png'))});
+          const metadata=JSON.stringify({v:1,kind:'url',resource:new URL(result.url).href});
+          const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(metadata));
+          return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');
+        }''',tab_id)
+        worker.evaluate("hash=>chrome.storage.local.set({'ignored:v1:127.0.0.1':[hash]})",one_hash)
+        badge('3')
+        worker.evaluate("chrome.storage.local.set({'filters:width':1000})"); badge('0')
+        worker.evaluate("chrome.storage.local.set({'filters:width':50})"); badge('3')
+        worker.evaluate("chrome.storage.local.remove('ignored:v1:127.0.0.1')"); badge('4')
+        source.wait_for_timeout(1000)
+        worker.evaluate('''async tabId=>{
+          globalThis.badgeWrites=[];
+          const original=chrome.action.setBadgeText;
+          chrome.action.setBadgeText=function(options){badgeWrites.push(options);return original.call(this,options)};
+          await chrome.scripting.executeScript({target:{tabId},func:()=>{
+            globalThis.passiveBadgeScans=0;const original=__imageTaken.scan;
+            __imageTaken.scan=function(...args){if(args[2]) passiveBadgeScans++;return original.apply(this,args)};
+          }});
+        }''',tab_id)
+        # Opening/reloading the view cannot reset or recount the source badge.
         extension_id = worker.url.split('/')[2]
         panel = context.new_page(); panel.goto(f'chrome-extension://{extension_id}/panel.html?tab={tab_id}')
-        expect(panel.locator('.card')).not_to_have_count(0)
+        expect(panel.locator('.page-context')).to_have_attribute('data-frames','2')
+        panel.wait_for_timeout(1000); badge('4')
+        panel_id=panel.evaluate('async ()=>(await chrome.tabs.getCurrent()).id')
+        badge('4',panel_id)
+        assert worker.evaluate('id=>badgeWrites.filter(write=>write.tabId===id).every(write=>write.text==="4")',tab_id), 'opening a view reset the badge'
+        assert worker.evaluate('''async tabId=>(await chrome.scripting.executeScript({target:{tabId},func:()=>passiveBadgeScans}))[0].result''',tab_id)==0, 'opening a view rescanned the page badge'
+        # Filter-only changes reuse the existing page snapshot.
         panel.locator('#type').select_option('gif', force=True); badge('0')
+        assert worker.evaluate('''async tabId=>(await chrome.scripting.executeScript({target:{tabId},func:()=>passiveBadgeScans}))[0].result''',tab_id)==0
+        panel.close(); badge('0')
+        panel=context.new_page();panel.goto(f'chrome-extension://{extension_id}/panel.html?tab={tab_id}')
+        expect(panel.locator('#type')).to_have_value('gif');badge('0')
+        panel.locator('#type').select_option('',force=True);badge('4')
+        panel.locator('#source').select_option('lazy',force=True);badge('1')
+        panel.locator('#source').select_option('',force=True);badge('4')
         source.evaluate("document.querySelector('#main').insertAdjacentHTML('beforeend','<img src=\"/extra.png\">')")
-        source.wait_for_timeout(1600); badge('0')
-        panel.close(); badge('5')
+        badge('5');panel.close();badge('5')
         source.goto(origin+'/slow-page',wait_until='domcontentloaded'); badge('1')
         assert worker.evaluate('id=>chrome.tabs.get(id).then(t=>t.status)',tab_id)=='loading', 'count must appear before the slow subresource finishes'
         assert worker.evaluate('id=>__imageTakenBadgeDiagnostics.get(id).state',tab_id)=='counted'
         release_slow.set()
         source.goto(origin+'/new'); badge('1')
-        print('Automatic pre-open badge, loaded-only counts, URL deduplication, lazy images, removal, shadow DOM, cross-origin iframe, XPath, panel ownership, navigation and zero extra image requests: OK')
+        print('Automatic pre-open badge, loaded-only counts, URL deduplication, lazy images, removal, shadow DOM, cross-origin iframe, XPath/CSS/search/ignore/size/type/source filters, stable open/reopen counts, cached filtering, navigation and zero extra image requests: OK')
         context.close()
 finally:
     release_slow.set()
