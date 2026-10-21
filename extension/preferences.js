@@ -27,10 +27,10 @@ export async function loadQuery(domain) {
   const value = (await chrome.storage.local.get(key))[key];
   return typeof value === 'string' ? value : '';
 }
-export function saveQuery(domain, value) {
+export function saveQuery(domain, value, explicitEmpty = false) {
   if (!domain) return Promise.resolve();
   const key = queryStorageKey(domain);
-  const operation = queryWrites.then(() => value ? chrome.storage.local.set({ [key]: value }) : chrome.storage.local.remove(key));
+  const operation = queryWrites.then(() => value || explicitEmpty ? chrome.storage.local.set({ [key]: value }) : chrome.storage.local.remove(key));
   queryWrites = operation.catch(() => {});
   return operation;
 }

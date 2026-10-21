@@ -1,3 +1,4 @@
+import { bindRemoteSubscriptions } from './remote-rules-settings.js';
 import { GLOBAL_DIMENSION_KEYS, loadGlobalDimensions, saveGlobalDimensions } from './preferences.js';
 import { t } from './i18n.js';
 import { initI18n, bindDocument, localizeDocument, LANGUAGE_KEY, languagePreference, translateRendered } from './i18n.js';
@@ -8,6 +9,7 @@ const status = document.getElementById('settings-status');
 try { await initI18n(); }
 catch (error) { status.textContent = t('无法读取设置：{0}', error.message); }
 bindDocument();
+bindRemoteSubscriptions();
 const themeSelect = document.getElementById('theme');
 try { await themeReady; }
 catch (error) { status.textContent = t('无法读取设置：{0}', error.message); }

@@ -9,6 +9,7 @@
 | 原图读取、预览与重试 | [image-data](specs/image-data/spec.md) |
 | 图库布局、选择与排序 | [image-library](specs/image-library/spec.md) |
 | 下载位置、标题、格式与去重 | [image-downloads](specs/image-downloads/spec.md) |
+| 远程规则订阅与刷新 | [remote-rule-subscriptions](specs/remote-rule-subscriptions/spec.md) |
 | 工具栏自动计数 | [automatic-badge](specs/automatic-badge/spec.md) |
 | 设置、语言与主题 | [user-preferences](specs/user-preferences/spec.md) |
 | 平台、权限、隐私与运行边界 | [extension-platform](specs/extension-platform/spec.md) |

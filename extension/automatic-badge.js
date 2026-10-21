@@ -1,13 +1,16 @@
+import { getEffectivePreferences } from './remote-rules-background.js';
+import { REMOTE_RULES_KEY, rulesChanged } from './remote-rules.js';
 import { imageBadge } from './badge.js';
 import { filterImages } from './lib.js';
 import { prepareMetadata, siteDomain, imageSize } from './metadata.js';
-import { thresholdChanges, loadThresholds, loadXPath, loadExclusions, loadQuery, loadIgnored, loadViewFilters } from './preferences.js';
+import { thresholdChanges, loadIgnored } from './preferences.js';
 import { t } from './i18n.js';
 
 export function registerAutomaticBadge() {
   const timers = new Map(), running = new Set(), dirty = new Set(), versions = new Map();
   const panels = new Map(), snapshots = new Map(), badges = new Map(), refreshes = new Map();
   const diagnostics = new Map();
+  let configurationVersion = 0;
   globalThis.__imageTakenBadgeDiagnostics = diagnostics;
   async function paintOne(tabId, badge) {
     await Promise.allSettled([
@@ -38,15 +41,15 @@ export function registerAutomaticBadge() {
   }
   async function update(tabId, fresh) {
     running.add(tabId);
-    const version = versions.get(tabId);
+    const version = versions.get(tabId), configVersion = configurationVersion;
     try {
       const tab = await chrome.tabs.get(tabId);
       const domain = siteDomain(tab.url);
       if (!domain) { await clear(tabId); return; }
       if (tab.discarded || tab.status === 'unloaded') return;
-      const [thresholds, xpath, exclusions, query, ignored, view] = await Promise.all([
-        loadThresholds(domain), loadXPath(domain), loadExclusions(domain), loadQuery(domain), loadIgnored(domain), loadViewFilters(),
-      ]);
+      const [effective, ignored] = await Promise.all([getEffectivePreferences(tab.url), loadIgnored(domain)]);
+      const { xpath, excludedSelectors: exclusions, query, ...view } = effective.values;
+      const thresholds = effective.values;
       let snapshot = snapshots.get(tabId);
       if (fresh || !snapshot || snapshot.version !== version || snapshot.url !== tab.url || snapshot.xpath !== xpath || snapshot.exclusions !== exclusions) {
         const target = { tabId, allFrames: !xpath };
@@ -87,7 +90,7 @@ export function registerAutomaticBadge() {
         target: { tabId, documentIds: [root.documentId] }, func: () => location.href,
       });
       if (current?.documentId !== root.documentId || current.result !== root.result.url) return;
-      if (versions.get(tabId) === version) {
+      if (versions.get(tabId) === version && configurationVersion === configVersion) {
         snapshots.set(tabId, snapshot);
         const badge = imageBadge(visible, items.length);
         await paint(tabId, badge);
@@ -132,7 +135,9 @@ export function registerAutomaticBadge() {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     const keys = Object.keys(changes);
-    if (!keys.some(key => /^(filters:|xpath:|excluded-selectors:|ignored:|image-query:)/.test(key))) return;
+    if (keys.length === 1 && keys[0] === REMOTE_RULES_KEY && !rulesChanged(changes[REMOTE_RULES_KEY])) return;
+    if (!keys.some(key => key === REMOTE_RULES_KEY || /^(filters:|xpath:|excluded-selectors:|ignored:|image-query:)/.test(key))) return;
+    configurationVersion++;
     const structural = keys.some(key => /^(xpath:|excluded-selectors:)/.test(key));
     void chrome.tabs.query({}).then(tabs => {
       for (const tab of tabs) {

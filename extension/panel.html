@@ -56,7 +56,8 @@
       <label class="check-line ignored-toggle"><input id="show-ignored" type="checkbox">显示已忽略的图片 <span id="ignored-count"></span></label>
       <button id="reset" class="text-button">清除筛选</button>
       <button id="defaults" class="text-button">恢复默认阈值</button>
-      <p class="hint">阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。</p>
+      <p class="hint">阈值按网站保存；未配置项依次使用远程规则和全局默认，还原按钮恢复继承。0 取消限制，未知尺寸或体积仍保留。</p>
+      <p id="effective-rules-source" class="hint rule-provenance" hidden></p>
       <p id="ignore-scope" class="hint"></p>
     </details>
     <details id="site-rules" class="xpath-settings"><summary>网站采集规则 <span id="site-rules-count">未启用</span><span class="chevron"><svg class="ui-icon" aria-hidden="true"><use href="#icon-chevron"/></svg></span></summary>
@@ -77,6 +78,7 @@
     <section id="gallery" class="gallery" aria-label="图片列表"></section>
     <section id="active-site-rules" class="active-site-rules" aria-labelledby="active-site-rules-title">
       <h3 id="active-site-rules-title">当前网站过滤规则</h3>
+      <p id="active-remote-rule" class="hint rule-provenance" hidden></p>
       <p id="active-rule-domain" class="hint"></p>
       <dl>
         <div><dt>XPath 范围</dt><dd><code id="active-xpath">未配置</code></dd></div>

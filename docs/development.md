@@ -98,3 +98,9 @@ npx --yes @fission-ai/openspec@1.14.3 archive <change-name>
 图片全部失败但目标目录准备成功时仍输出清单；目录准备失败不输出、不更换位置。清单保存失败单独提示并保留图片。两类保存继续沿用原有目录授权、实际路径核验及默认目录去重的可验证范围，无额外权限、后端或来源信息上传。
 
 `manifest_browser_test.py` 独立运行20项获批测试中的10项浏览器验收，使用临时配置、本地 HTTP 服务与真实沙盒文件句柄，支持 `CHROMIUM_PATH`；真实系统目录选择器及权限弹窗不由自动化替身证明。其余10项为 Node 单元测试，随 `npm test` 运行。
+
+## 远程规则开发与验证
+
+`remote-rules.js` 提供数据格式校验与合并，`remote-subscriptions.js` 管理本机 `remote-rules:v1` 缓存和调度。`remote-rules-background.js` 协调后台共享有效配置；图库经消息、徽标直接调用。`rules-host.js` 通过离屏单例承载选择器校验与 `rules-worker.js` 的有时限正则匹配，所有执行代码随扩展打包。设置动态列表位于 `remote-rules-settings.js`，格式见[规则文档](remote-rules.md)。
+
+`npm test` 包含规则与订阅单元测试；`python tests/remote_rules_browser_test.py` 使用独立临时配置及本地HTTP服务验证真实设置、离线、徽标、范围、线程、导航与下载更新。无需用户Chrome资料、真实Gist或额外运行时依赖。

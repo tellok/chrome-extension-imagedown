@@ -1,3 +1,5 @@
+import { registerRemoteRules } from './remote-rules-background.js';
+registerRemoteRules();
 import { t, initI18n, translateRendered } from './i18n.js';
 void initI18n().then(() => chrome.action.setTitle({ title: t('打开 ImageTaken') })).catch(console.error);
 globalThis.addEventListener('imagetaken-languagechange', event => {

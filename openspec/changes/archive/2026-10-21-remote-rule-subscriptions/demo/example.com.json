@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "gallery",
+      "pattern": "^https?://example\\.com/gallery(?:[/?#]|$)",
+      "options": {
+        "width": 200,
+        "height": 120,
+        "minBytes": 4096,
+        "excludedSelectors": ".advertisement, [data-ad]",
+        "loaded": true
+      }
+    },
+    {
+      "id": "photos",
+      "pattern": "^https?://example\\.com/photos(?:[/?#]|$)",
+      "options": {
+        "width": 100,
+        "height": 100,
+        "type": "jpg"
+      }
+    }
+  ]
+}

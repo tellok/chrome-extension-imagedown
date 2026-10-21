@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "repository-issues",
+      "pattern": "^https://github\\.com/tellok/chrome-extension-imagetoken/issues(?:[/?#]|$)",
+      "options": {
+        "width": 80,
+        "height": 80,
+        "minBytes": 2048,
+        "xpath": "//main",
+        "excludedSelectors": ".avatar, .avatar-user"
+      }
+    },
+    {
+      "id": "repository",
+      "pattern": "^https://github\\.com/tellok/chrome-extension-imagetoken(?:[/?#]|$)",
+      "options": {
+        "width": 50,
+        "height": 50,
+        "xpath": "//main"
+      }
+    }
+  ]
+}

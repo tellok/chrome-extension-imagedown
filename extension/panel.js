@@ -1,10 +1,12 @@
+import { loadEffectivePreferences } from './effective-preferences.js';
+import { REMOTE_RULES_KEY, rulesChanged } from './remote-rules.js';
 import { t } from './i18n.js';
 import { initI18n, bindDocument, localizeDocument, translateRendered } from './i18n.js';
 import { THEME_KEY } from './theme.js';
 import { scanTab, downloadImage } from './api.js';
 import { filterImages, imageType, METHOD_LABELS } from './lib.js';
 import { DEFAULT_THRESHOLDS, normalizeThreshold, siteDomain, ignoreStorageKey, imageSize, formatBytes } from './metadata.js';
-import { loadThresholdState, saveThresholds, resetThresholds, thresholdChanges, loadIgnored, setIgnored, loadXPath, xpathStorageKey, loadExclusions, exclusionsStorageKey, loadQuery, saveQuery, VIEW_FILTERS_KEY, loadViewFilters, saveViewFilters, normalizeViewFilters } from './preferences.js';
+import { saveThresholds, resetThresholds, thresholdChanges, loadIgnored, setIgnored, xpathStorageKey, exclusionsStorageKey, saveQuery, VIEW_FILTERS_KEY, loadViewFilters, saveViewFilters, normalizeViewFilters } from './preferences.js';
 import { loadPreview, previewOrigin } from './previews.js';
 import { bindGallerySelection } from './selection.js';
 import { bindTitleEditor } from './title-editor.js';
@@ -20,6 +22,7 @@ const sourceLabels = { img: '页面图片', src: '图片地址', css: 'CSS', pse
 let directory = null, directoryReady = false, locationBusy = false;
 let lastDownloadId = null;
 let queryRevision = 0;
+let effectiveState = null, pendingEffective = false, effectiveRequest = 0;
 let thresholdRevision = 0, thresholdsReady = false;
 let thresholdWrites = Promise.resolve();
 const thresholdState = { values: { ...DEFAULT_THRESHOLDS }, defaults: { ...DEFAULT_THRESHOLDS }, overrides: {} };
@@ -189,8 +192,13 @@ function updateDimensionInputs(skipFocused = false) {
   for (const field of ['width', 'height']) {
     const input = $(thresholdInputs[field]);
     const inherited = !Object.hasOwn(thresholdState.overrides, field);
-    input.placeholder = inherited ? t('全局默认({0})', thresholdState.defaults[field]) : '';
-    input.title = t('全局默认({0})', thresholdState.defaults[field]);
+    const remote = Object.hasOwn(effectiveState?.remoteOptions || {}, field);
+    const label = remote ? '远程默认({0})' : '全局默认({0})';
+    input.placeholder = inherited ? t(label, thresholdState.defaults[field]) : '';
+    input.title = t(label, thresholdState.defaults[field]);
+    const resetLabel = remote ? (field === 'width' ? '还原宽度远程默认' : '还原高度远程默认') : (field === 'width' ? '还原宽度全局默认' : '还原高度全局默认');
+    $(`reset-min-${field}`).title = t(resetLabel);
+    $(`reset-min-${field}`).setAttribute('aria-label', t(resetLabel));
     if (!(skipFocused && document.activeElement === input)) {
       input.value = inherited ? '' : String(thresholdState.overrides[field]);
       dimensionDrafts[field] = input.value;
@@ -297,10 +305,19 @@ function render(preservePreviews = false) {
   const layoutLabel = $('gallery').classList.contains('list') ? t('切换为网格布局') : t('切换为列表布局');
   $('layout').setAttribute('aria-label', layoutLabel);
   $('layout').title = layoutLabel;
+  const source = effectiveState?.remote;
+  const sourceText = source ? t('远程来源：{0} · 规则 {1}', `${source.domain}.json`, source.rule) : '';
+  for (const id of ['effective-rules-source', 'active-remote-rule']) {
+    $(id).textContent = effectiveState?.error ? t('远程规则读取失败：{0}', effectiveState.error) : sourceText;
+    $(id).title = source ? `${source.url} · ${source.rule}` : '';
+    $(id).hidden = !$(id).textContent;
+  }
   $('active-rule-domain').textContent = state.domain ? t(`{0} · 已保存的规则；可在页面上方修改。`, state.domain) : t('当前页面未配置网站过滤规则。');
   for (const [id, value] of [['active-xpath', state.xpath], ['active-css', state.exclusions]]) {
     $(id).textContent = value || t('未配置');
     $(id).classList.toggle('unconfigured', !value);
+    const field = id === 'active-xpath' ? 'xpath' : 'excludedSelectors';
+    $(id).title = effectiveState?.origins[field] === 'remote' && source ? `${source.url} · ${source.rule}` : value;
   }
   const items = visible();
   $('visible-count').textContent = t(`{0} 张图片`, items.length);
@@ -399,8 +416,10 @@ async function refresh(tab = state.tab) {
     if (!/^https?:/.test(tab.url || '')) throw new Error(t('请切换到普通 HTTP / HTTPS 网页。浏览器内部页、商店页及 PDF 阅读器可能不允许扩展访问。'));
     if (!manifestReady) await reloadManifestPreference();
     await thresholdWrites;
-    const [xpath, exclusions, query, thresholds] = await Promise.all([loadXPath(domain), loadExclusions(domain), loadQuery(domain), loadThresholdState(domain)]);
+    const thresholds = await loadEffectivePreferences(tab.url);
+    const { xpath, excludedSelectors: exclusions, query } = thresholds.values;
     if (generation !== state.generation) return;
+    effectiveState = thresholds; applyViewFilters(thresholds.values);
     applyThresholdState(thresholds); thresholdsReady = true;
     if (queryRevision === queryVersion) $('query').value = query;
     state.xpath = xpath; state.exclusions = exclusions;
@@ -427,6 +446,7 @@ async function refresh(tab = state.tab) {
   } finally {
     if (generation === state.generation) {
       state.scanning = false; render(); if (thresholdsReady) void syncThresholds();
+      if (pendingEffective) void syncEffective();
       if (!manifestReady) notice(manifestError, true);
     }
   }
@@ -451,6 +471,7 @@ async function runDownloads(items) {
     state.busy = false; selectionUI();
     notice(t(`无法准备下载目录：{0}。请重新选择目录或恢复默认位置。`, error.message), true);
     if (state.pendingTab) { const tab = state.pendingTab; state.pendingTab = null; await refresh(tab); }
+    else if (pendingEffective) await syncEffective();
     return;
   }
   // Two concurrent images bound memory and avoid flooding sites with requests.
@@ -502,6 +523,7 @@ async function runDownloads(items) {
   else notice(t(`{0} 张图片已下载到「{1}」文件夹。`, done, destination.folder));
   if (manifest) notice($('notice').textContent, !!manifestFailure || failed > 0, manifestFailure ? t('图片清单保存失败：{0}。已保存的图片保留。', manifestFailure) : t('图片清单已保存。'));
   if (state.pendingTab) { const tab = state.pendingTab; state.pendingTab = null; await refresh(tab); }
+  else if (pendingEffective) await syncEffective();
 }
 
 async function applySiteRules(clear = false) {
@@ -525,14 +547,58 @@ async function applySiteRules(clear = false) {
 $('apply-xpath').addEventListener('click', () => void applySiteRules());
 $('clear-xpath').addEventListener('click', () => void applySiteRules(true));
 
+// Apply remote revisions without rebuilding successful preview nodes or saving defaults.
+async function syncEffective(preserveQuery = false) {
+  if (!state.tab) return;
+  if (state.busy || state.scanning) { pendingEffective = true; return; }
+  pendingEffective = false;
+  const request = ++effectiveRequest, generation = state.generation, url = state.tab.url;
+  try {
+    const next = await loadEffectivePreferences(url);
+    if (request !== effectiveRequest || generation !== state.generation || state.tab?.url !== url || sourceLoading) return;
+    if (state.busy) { pendingEffective = true; return; }
+    const structural = state.xpath !== next.values.xpath || state.exclusions !== next.values.excludedSelectors;
+    if (structural) {
+      state.scanning = true; selectionUI();
+      const result = await scanTab(state.tab.id, next.values.xpath, next.values.excludedSelectors);
+      if (request !== effectiveRequest || generation !== state.generation || sourceLoading) return;
+      const old = new Map(state.items.map(item => [item.key, item]));
+      state.items = result.items.map(item => {
+        const previous = old.get(item.key);
+        if (previous && item.origins.some(origin => previous.origins.some(oldOrigin => oldOrigin.documentId === origin.documentId))) {
+          old.delete(item.key);
+          // Preserve original blobs held by WeakMaps keyed on this object, and its ready preview.
+          const preview = { previewStatus: previous.previewStatus, preview: previous.preview, retryPreview: previous.retryPreview, previewOrigin: previous.previewOrigin };
+          Object.assign(previous, item, preview); return previous;
+        }
+        return item;
+      });
+      for (const item of old.values()) if (item.retryPreview) URL.revokeObjectURL(item.retryPreview);
+      const keys = new Set(state.items.map(item => item.key));
+      for (const key of state.selected) if (!keys.has(key)) state.selected.delete(key);
+      applyIgnored();
+    }
+    for (const [id, oldValue, value] of [['xpath', state.xpath, next.values.xpath], ['excluded-selectors', state.exclusions, next.values.excludedSelectors]]) {
+      if ($(id).value === oldValue && document.activeElement !== $(id)) $(id).value = value;
+    }
+    state.xpath = next.values.xpath; state.exclusions = next.values.excludedSelectors;
+    effectiveState = next; applyThresholdState(next, true); thresholdsReady = true; applyViewFilters(next.values);
+    if (!preserveQuery && document.activeElement !== $('query')) $('query').value = next.values.query;
+    render(true);
+  } catch (error) { notice(t('远程规则读取失败：{0}', error.message), true); }
+  finally {
+    if (generation === state.generation && request === effectiveRequest) { state.scanning = false; selectionUI(); if (pendingEffective) void syncEffective(); }
+  }
+}
+
 async function syncThresholds(skipFocused = false) {
   if (!state.domain || state.scanning) return;
   const domain = state.domain, revision = ++thresholdRevision;
   try {
     await thresholdWrites;
-    const values = await loadThresholdState(domain);
+    const values = await loadEffectivePreferences(state.tab.url);
     if (domain !== state.domain || revision !== thresholdRevision) return;
-    applyThresholdState(values, skipFocused); thresholdsReady = true; render(true);
+    effectiveState = values; applyThresholdState(values, skipFocused); thresholdsReady = true; render(true);
   } catch (error) {
     if (domain === state.domain && revision === thresholdRevision) {
       thresholdsReady = false; selectionUI(); notice(t('筛选设置保存失败：{0}', error.message), true);
@@ -541,7 +607,7 @@ async function syncThresholds(skipFocused = false) {
 }
 $('query').addEventListener('input', () => {
   queryRevision++;
-  void saveQuery(state.domain, $('query').value).catch(error => notice(t(`搜索内容保存失败：{0}`, error.message), true));
+  void saveQuery(state.domain, $('query').value, Object.hasOwn(effectiveState?.remoteOptions || {}, 'query')).catch(error => notice(t(`搜索内容保存失败：{0}`, error.message), true));
   scheduleRender();
 });
 for (const [field, id] of Object.entries(thresholdInputs)) {
@@ -612,7 +678,7 @@ $('reset').addEventListener('click', () => {
   $('loaded').checked = false; $('show-ignored').checked = false; render();
   void saveViewFilters(filters()).catch(error => notice(error.message, true));
   queryRevision++;
-  void saveQuery(state.domain, '').catch(error => notice(t(`搜索内容清除失败：{0}`, error.message), true));
+  void saveQuery(state.domain, '', Object.hasOwn(effectiveState?.remoteOptions || {}, 'query')).catch(error => notice(t(`搜索内容清除失败：{0}`, error.message), true));
   void queueThresholdSave(state.domain, { width: 0, height: 0, minBytes: 0 }).catch(error => notice(error.message, true));
 });
 $('defaults').addEventListener('click', async () => {
@@ -624,6 +690,10 @@ $('defaults').addEventListener('click', async () => {
 });
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
+  if (changes[REMOTE_RULES_KEY]) {
+    if (rulesChanged(changes[REMOTE_RULES_KEY])) void syncEffective();
+    if (Object.keys(changes).length === 1) return;
+  }
   if (changes[DOWNLOAD_MANIFEST_KEY]) {
     manifestRevision++;
     manifestEnabled = changes[DOWNLOAD_MANIFEST_KEY].newValue === true;
@@ -631,7 +701,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
     if (Object.keys(changes).length === 1) return;
   }
   if (changes[TITLE_CLEANUP_KEY]) titleEditor.setCleanup(changes[TITLE_CLEANUP_KEY].newValue === true);
-  if (changes[VIEW_FILTERS_KEY]) applyViewFilters(changes[VIEW_FILTERS_KEY].newValue);
+  if (changes[VIEW_FILTERS_KEY]) void syncEffective(true);
   if (changes[READY_FIRST_KEY]) readyFirst = changes[READY_FIRST_KEY].newValue !== false;
   // Search history is restored on scan/open. Saving it must not interrupt a
   // gesture or replace another panel's current, possibly unfinished search.

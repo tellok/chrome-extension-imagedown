@@ -10,7 +10,9 @@
     "downloads",
     "sidePanel",
     "storage",
-    "debugger"
+    "debugger",
+    "alarms",
+    "offscreen"
   ],
   "host_permissions": [
     "http://*/*",

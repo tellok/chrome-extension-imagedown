@@ -1,0 +1,145 @@
+import { REMOTE_RULES_KEY, RULE_LIMITS, parseSubscription, validateRuleDocument } from './remote-rules.js';
+export const RULES_ALARM = 'imagetaken-remote-rules';
+export const REFRESH_INTERVAL = 6 * 60 * 60 * 1000;
+const bytes = value => new TextEncoder().encode(JSON.stringify(value)).length;
+const canonical = value => JSON.stringify(value, (_key, item) => item && !Array.isArray(item) && typeof item === 'object' ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
+export function createSubscriptionManager({ storage, alarms, fetcher = fetch, validateSelectors, match, now = Date.now, timer = setTimeout, cancelTimer = clearTimeout }) {
+  let mutations = Promise.resolve(), active = 0;
+  const pending = [], inFlight = new Map(), matches = new Map();
+  async function read() {
+    const saved = (await storage.get(REMOTE_RULES_KEY))[REMOTE_RULES_KEY];
+    if (saved === undefined) return { revision: 0, entries: [] };
+    if (!saved || !Array.isArray(saved.entries) || !Number.isInteger(saved.revision)) throw new Error('Invalid remote rule cache');
+    return structuredClone(saved);
+  }
+  function mutate(operation) {
+    const result = mutations.then(async () => {
+      const state = await read();
+      const result = await operation(state);
+      if (result === false) return state;
+      await storage.set({ [REMOTE_RULES_KEY]: state });
+      return state;
+    });
+    mutations = result.catch(() => {});
+    return result;
+  }
+  async function schedule() {
+    const state = await read();
+    if (!state.entries.length) { await alarms.clear(RULES_ALARM); return; }
+    if (!(await alarms.get(RULES_ALARM))) await alarms.create(RULES_ALARM, { periodInMinutes: 360 });
+  }
+  async function list() {
+    const state = await read();
+    return { ...state, entries: state.entries.map(entry => ({ ...entry, refreshing: inFlight.has(entry.id) })) };
+  }
+  async function add(input) {
+    const source = parseSubscription(input);
+    const id = crypto.randomUUID();
+    await mutate(state => {
+      if (state.entries.some(entry => entry.url === source.url)) throw new Error('Duplicate subscription');
+      if (state.entries.length >= RULE_LIMITS.entries) throw new Error('Subscription limit: 20');
+      state.entries.push({ id, ...source, lastAttempt: null, lastSuccess: null, error: '' });
+      state.revision++;
+    });
+    await schedule();
+    await refresh(id);
+    return list();
+  }
+  async function remove(id) {
+    await mutate(state => {
+      if (!state.entries.some(entry => entry.id === id)) return false;
+      state.entries = state.entries.filter(entry => entry.id !== id); state.revision++;
+    });
+    await schedule();
+    return list();
+  }
+  async function acquire() {
+    if (active >= 2) await new Promise(resolve => pending.push(resolve));
+    else active++;
+  }
+  function release() { const next = pending.shift(); if (next) next(); else active--; }
+  async function fetchDocument(url) {
+    const controller = new AbortController();
+    let expired = false;
+    const timeout = timer(() => { expired = true; controller.abort(); }, RULE_LIMITS.timeout);
+    try {
+      const response = await fetcher(url, { signal: controller.signal, credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-cache' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const reader = response.body.getReader(), chunks = [];
+      let total = 0;
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          total += value.byteLength;
+          if (total > RULE_LIMITS.fileBytes) throw new Error('Remote rule file exceeds 256 KiB');
+          chunks.push(value);
+        }
+      } catch (error) { await reader.cancel().catch(() => {}); throw error; }
+      const joined = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) { joined.set(chunk, offset); offset += chunk.length; }
+      const document = validateRuleDocument(JSON.parse(new TextDecoder().decode(joined)));
+      await validateSelectors(document);
+      return document;
+    } catch (error) { if (expired) throw new Error('Remote rule fetch timeout'); throw error; }
+    finally { cancelTimer(timeout); }
+  }
+  function refresh(id) {
+    if (inFlight.has(id)) return inFlight.get(id);
+    const operation = (async () => {
+      await acquire();
+      try {
+        const before = await read(), entry = before.entries.find(entry => entry.id === id);
+        if (!entry) return;
+        await mutate(state => {
+          const current = state.entries.find(value => value.id === id && value.url === entry.url);
+          if (!current) return false;
+          current.lastAttempt = now(); current.error = '';
+        });
+        try {
+          const document = await fetchDocument(entry.url);
+          await mutate(state => {
+            const current = state.entries.find(value => value.id === id && value.url === entry.url);
+            if (!current) return false;
+            const total = state.entries.reduce((sum, value) => sum + (value.id === id ? bytes(document) : value.document ? bytes(value.document) : 0), 0);
+            if (total > RULE_LIMITS.cacheBytes) throw new Error('Remote rule cache exceeds 4 MiB');
+            if (canonical(current.document) !== canonical(document)) { state.revision++; matches.clear(); }
+            current.document = document; current.lastSuccess = now(); current.error = '';
+          });
+        } catch (error) {
+          await mutate(state => {
+            const current = state.entries.find(value => value.id === id && value.url === entry.url);
+            if (!current) return false;
+            current.error = error.message;
+          });
+        }
+      } finally { release(); }
+    })().finally(() => inFlight.delete(id));
+    inFlight.set(id, operation);
+    return operation;
+  }
+  async function refreshAll({ dueOnly = false } = {}) {
+    const state = await read();
+    const results = await Promise.allSettled(state.entries.filter(entry => !dueOnly || entry.lastAttempt === null || now() - entry.lastAttempt >= REFRESH_INTERVAL).map(entry => refresh(entry.id)));
+    const failed = results.find(result => result.status === 'rejected');
+    if (failed) throw failed.reason;
+    return list();
+  }
+  async function resolve(url) {
+    const state = await read(), domain = new URL(url).hostname;
+    const entries = state.entries.filter(entry => entry.domain === domain && entry.document);
+    if (!entries.length) return { options: {}, source: null, revision: state.revision };
+    const key = `${state.revision}:${url}`;
+    if (!matches.has(key)) {
+      if (matches.size >= 200) matches.delete(matches.keys().next().value);
+      matches.set(key, match(entries, url).then(result => ({ ...result, revision: state.revision }), error => ({ options: {}, source: null, revision: state.revision, error: error.message })));
+    }
+    const result = await matches.get(key);
+    // Removed/updated sources must not publish a result from an earlier match.
+    if ((await read()).revision !== state.revision) return resolve(url);
+    return result;
+  }
+  async function start() { await schedule(); await refreshAll({ dueOnly: true }); }
+  return { list, add, remove, refresh, refreshAll, resolve, start, schedule };
+}

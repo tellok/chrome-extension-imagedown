@@ -386,3 +386,5 @@ footer>.hint { text-align: center; margin-bottom: 0; }
 .threshold-reset:hover:not(:disabled) { background: var(--hover); border-color: var(--border); }
 .threshold-reset:disabled { opacity: .35; cursor: default; }
 .threshold-reset .ui-icon { width: 14px; height: 14px; }
+
+.rule-provenance { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }

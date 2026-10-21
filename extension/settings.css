@@ -23,3 +23,18 @@
 .setting-row .dimension-input { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .dimension-input input { width: 90px; min-width: 0; padding: 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--accent); font: inherit; }
 .dimension-input input:invalid, .dimension-input input[aria-invalid="true"] { border-color: #c44848; }
+
+.subscription-help, #subscriptions-form, .subscription-tools { margin: 14px 16px; }
+#subscriptions-form label { display: block; font-size: 12px; margin-bottom: 7px; }
+.subscription-input { display: flex; gap: 8px; align-items: center; }
+.subscription-input input { flex: 1; min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--accent); font: inherit; font-size: 12px; }
+.subscription-input button { flex-shrink: 0; }
+.subscription-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+#subscriptions-status { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+#subscriptions-list { list-style: none; padding: 0; margin: 0; }
+.subscription { padding: 14px 16px; border-top: 1px solid var(--border); min-width: 0; }
+.subscription strong { font-size: 12px; overflow-wrap: anywhere; }
+.subscription-url { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 11px; margin: 6px 0; }
+.subscription-state { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; margin: 6px 0; }
+.subscription-state.error { color: var(--error, #c44848); }
+.subscription-actions { display: flex; gap: 8px; margin-top: 8px; }

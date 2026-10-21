@@ -44,7 +44,7 @@
         <span><strong>全局默认最低高度</strong></span>
         <span class="dimension-input"><input id="default-min-height" type="number" min="0" max="100000" step="1" aria-describedby="threshold-help" disabled><span>px</span></span>
       </label>
-      <p id="threshold-help" class="settings-note">未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。</p>
+      <p id="threshold-help" class="settings-note">本地网站设置优先，其次使用命中远程规则，最后使用全局默认宽高。0 表示不限制；最低体积默认 2 KiB。</p>
     </section>
     <section class="settings-group" aria-labelledby="title-settings-heading">
       <h3 id="title-settings-heading">标题与文件夹</h3>
@@ -69,6 +69,17 @@
         <input id="download-manifest" type="checkbox" role="switch" aria-describedby="manifest-help" disabled>
       </label>
       <p class="settings-note">默认关闭。开启后每批下载生成一份清单。</p>
+    </section>
+    <section class="settings-group" aria-labelledby="subscriptions-heading">
+      <h3 id="subscriptions-heading">远程规则订阅</h3>
+      <p class="setting-description subscription-help">本地配置优先，远程补充未配置项。每6小时更新，失败时保留有效缓存。</p>
+      <form id="subscriptions-form">
+        <label for="subscription-url">规则文件地址</label>
+        <div class="subscription-input"><input id="subscription-url" type="url" required placeholder="https://…/example.com.json" aria-label="规则文件地址"><button id="subscriptions-add" type="submit" disabled>添加订阅</button></div>
+      </form>
+      <div class="subscription-tools"><button id="subscriptions-refresh-all" type="button" disabled>刷新全部</button><span id="subscriptions-status" role="status" aria-live="polite"></span></div>
+      <p id="subscriptions-empty" class="settings-note">尚未添加订阅。</p>
+      <ul id="subscriptions-list"></ul>
     </section>
     <p id="settings-status" role="status" aria-live="polite"></p>
   </main>
