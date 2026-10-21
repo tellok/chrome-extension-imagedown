@@ -1,7 +1,7 @@
 import { imageBadge } from './badge.js';
 import { filterImages } from './lib.js';
 import { prepareMetadata, siteDomain, imageSize } from './metadata.js';
-import { loadThresholds, loadXPath, loadExclusions, loadQuery, loadIgnored, loadViewFilters } from './preferences.js';
+import { thresholdChanges, loadThresholds, loadXPath, loadExclusions, loadQuery, loadIgnored, loadViewFilters } from './preferences.js';
 import { t } from './i18n.js';
 
 export function registerAutomaticBadge() {
@@ -45,7 +45,7 @@ export function registerAutomaticBadge() {
       if (!domain) { await clear(tabId); return; }
       if (tab.discarded || tab.status === 'unloaded') return;
       const [thresholds, xpath, exclusions, query, ignored, view] = await Promise.all([
-        loadThresholds(), loadXPath(domain), loadExclusions(domain), loadQuery(domain), loadIgnored(domain), loadViewFilters(),
+        loadThresholds(domain), loadXPath(domain), loadExclusions(domain), loadQuery(domain), loadIgnored(domain), loadViewFilters(),
       ]);
       let snapshot = snapshots.get(tabId);
       if (fresh || !snapshot || snapshot.version !== version || snapshot.url !== tab.url || snapshot.xpath !== xpath || snapshot.exclusions !== exclusions) {
@@ -135,7 +135,11 @@ export function registerAutomaticBadge() {
     if (!keys.some(key => /^(filters:|xpath:|excluded-selectors:|ignored:|image-query:)/.test(key))) return;
     const structural = keys.some(key => /^(xpath:|excluded-selectors:)/.test(key));
     void chrome.tabs.query({}).then(tabs => {
-      for (const tab of tabs) if (siteDomain(tab.url) && !tab.discarded && tab.status !== 'unloaded') schedule(tab.id, structural);
+      for (const tab of tabs) {
+        const domain = siteDomain(tab.url);
+        const thresholdsOnly = keys.every(key => key.startsWith('filters:site:') || key === 'filters:width' || key === 'filters:height' || key === 'filters:minBytes');
+        if (domain && !tab.discarded && tab.status !== 'unloaded' && (!thresholdsOnly || thresholdChanges(changes, domain))) schedule(tab.id, structural);
+      }
     });
   });
   chrome.runtime.onMessage.addListener((message, sender) => {

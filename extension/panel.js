@@ -3,8 +3,8 @@ import { initI18n, bindDocument, localizeDocument, translateRendered } from './i
 import { THEME_KEY } from './theme.js';
 import { scanTab, downloadImage } from './api.js';
 import { filterImages, imageType, METHOD_LABELS } from './lib.js';
-import { DEFAULT_THRESHOLDS, THRESHOLD_KEYS, normalizeThreshold, siteDomain, ignoreStorageKey, imageSize, formatBytes } from './metadata.js';
-import { loadThresholds, saveThresholds, loadIgnored, setIgnored, loadXPath, xpathStorageKey, loadExclusions, exclusionsStorageKey, loadQuery, saveQuery, VIEW_FILTERS_KEY, loadViewFilters, saveViewFilters, normalizeViewFilters } from './preferences.js';
+import { normalizeThreshold, siteDomain, ignoreStorageKey, imageSize, formatBytes } from './metadata.js';
+import { loadThresholds, saveThresholds, resetThresholds, thresholdChanges, loadIgnored, setIgnored, loadXPath, xpathStorageKey, loadExclusions, exclusionsStorageKey, loadQuery, saveQuery, VIEW_FILTERS_KEY, loadViewFilters, saveViewFilters, normalizeViewFilters } from './preferences.js';
 import { loadPreview, previewOrigin } from './previews.js';
 import { bindGallerySelection } from './selection.js';
 import { bindTitleEditor } from './title-editor.js';
@@ -19,6 +19,8 @@ const sourceLabels = { img: '页面图片', src: '图片地址', css: 'CSS', pse
 let directory = null, directoryReady = false, locationBusy = false;
 let lastDownloadId = null;
 let queryRevision = 0;
+let thresholdRevision = 0, thresholdsReady = false;
+const thresholdCards = new Map();
 let panelTabId = null, sourceLoading = false;
 let readyFirst = false, previewOrderTimer;
 const reportBadge = createBadgeBinding(() => ({
@@ -224,6 +226,7 @@ function selectionUI() {
   for (const button of $('gallery').querySelectorAll('.ignore-image[data-unavailable]')) button.disabled = true;
   for (const button of $('gallery').querySelectorAll('.single-download')) button.disabled = state.busy || previewWork || locationBusy || !directoryReady;
   for (const button of $('gallery').querySelectorAll('.retry-preview')) button.disabled = state.busy || state.scanning || !!state.retryBatch || button.dataset.pending === 'true';
+  for (const id of [...Object.values(thresholdInputs), 'defaults', 'reset']) $(id).disabled = state.scanning || !state.domain || !thresholdsReady;
   retryUI();
 }
 
@@ -251,7 +254,7 @@ function updateCard(card, item) {
   previewUI(card, item);
 }
 
-function render() {
+function render(preservePreviews = false) {
   cancelSelectionGesture();
   reportBadge();
   $('site-rules-count').textContent = [state.xpath && t('XPath 范围'), state.exclusions && t('CSS 排除')].filter(Boolean).join(' · ') || t('未启用');
@@ -273,9 +276,13 @@ function render() {
   $('empty').querySelector('h3').textContent = state.scanning ? t('正在扫描页面…') : state.items.length ? t('没有符合条件的图片') : t('还没有图片');
   $('empty').querySelector('p').textContent = state.items.length ? t('调整筛选条件，或清除筛选后查看。') : t('滚动页面让懒加载图片出现，再点击右上角重新扫描。');
   const fragment = document.createDocumentFragment();
+  if (preservePreviews !== true) thresholdCards.clear();
   for (const item of items) {
+    const existing = item.previewStatus === 'ready' && !item.previewPending ? thresholdCards.get(item.key) : null;
+    if (existing) { updateCard(existing, item); fragment.append(existing); continue; }
     const card = $('card-template').content.firstElementChild.cloneNode(true);
     card.dataset.key = item.key;
+    thresholdCards.set(item.key, card);
     const image = card.querySelector('img');
     const generation = state.generation;
     if (item.kind === 'canvas' && !item.preview && !item.retryPreview) item.previewStatus = 'error';
@@ -332,6 +339,7 @@ async function refresh(tab = state.tab) {
   if (!tab) return;
   if (state.busy) { state.pendingTab = tab; return; }
   const generation = ++state.generation;
+  thresholdRevision++; thresholdsReady = false; thresholdCards.clear();
   releasePreviews();
   state.retryBatch = null;
   $('retry-summary').textContent = '';
@@ -354,8 +362,9 @@ async function refresh(tab = state.tab) {
   notice(''); render();
   try {
     if (!/^https?:/.test(tab.url || '')) throw new Error(t('请切换到普通 HTTP / HTTPS 网页。浏览器内部页、商店页及 PDF 阅读器可能不允许扩展访问。'));
-    const [xpath, exclusions, query] = await Promise.all([loadXPath(state.domain), loadExclusions(state.domain), loadQuery(state.domain)]);
+    const [xpath, exclusions, query, thresholds] = await Promise.all([loadXPath(domain), loadExclusions(domain), loadQuery(domain), loadThresholds(domain)]);
     if (generation !== state.generation) return;
+    applyThresholds(thresholds); thresholdsReady = true;
     if (queryRevision === queryVersion) $('query').value = query;
     state.xpath = xpath; state.exclusions = exclusions;
     $('site-rules-count').textContent = [xpath && t('XPath 范围'), exclusions && t('CSS 排除')].filter(Boolean).join(' · ') || t('未启用');
@@ -379,7 +388,7 @@ async function refresh(tab = state.tab) {
     $('xpath-status').classList.add('error');
     notice(t(`扫描失败：{0}`, error.message), true);
   } finally {
-    if (generation === state.generation) { state.scanning = false; render(); }
+    if (generation === state.generation) { state.scanning = false; render(); if (thresholdsReady) void syncThresholds(); }
   }
 }
 
@@ -460,7 +469,20 @@ async function applySiteRules(clear = false) {
 $('apply-xpath').addEventListener('click', () => void applySiteRules());
 $('clear-xpath').addEventListener('click', () => void applySiteRules(true));
 
-for (const id of ['min-width', 'min-height', 'min-size']) $(id).addEventListener('input', scheduleRender);
+async function syncThresholds(skipFocused = false) {
+  if (!state.domain || state.scanning) return;
+  const domain = state.domain, revision = ++thresholdRevision;
+  try {
+    const values = await loadThresholds(domain);
+    if (domain !== state.domain || revision !== thresholdRevision) return;
+    if (skipFocused) for (const [field, id] of Object.entries(thresholdInputs)) if (document.activeElement === $(id)) delete values[field];
+    applyThresholds(values); thresholdsReady = true; render(true);
+  } catch (error) {
+    if (domain === state.domain && revision === thresholdRevision) {
+      thresholdsReady = false; selectionUI(); notice(t('筛选设置保存失败：{0}', error.message), true);
+    }
+  }
+}
 $('query').addEventListener('input', () => {
   queryRevision++;
   void saveQuery(state.domain, $('query').value).catch(error => notice(t(`搜索内容保存失败：{0}`, error.message), true));
@@ -468,9 +490,14 @@ $('query').addEventListener('input', () => {
 });
 for (const [field, id] of Object.entries(thresholdInputs)) {
   $(id).addEventListener('input', () => {
+    if (!thresholdsReady || !state.domain || state.scanning) return;
+    const domain = state.domain;
+    thresholdRevision++;
     const value = normalizeThreshold($(id).value) * (field === 'minBytes' ? 1024 : 1);
-    void saveThresholds({ [field]: value }).catch(error => notice(t(`筛选设置保存失败：{0}`, error.message), true));
+    render(true);
+    void saveThresholds(domain, { [field]: value }).catch(error => { if (domain === state.domain) notice(t(`筛选设置保存失败：{0}`, error.message), true); });
   });
+  $(id).addEventListener('blur', () => { if (thresholdsReady) void syncThresholds(); });
 }
 function applyViewFilters(value) {
   const view = normalizeViewFilters(value);
@@ -483,17 +510,21 @@ for (const id of ['type', 'source', 'loaded', 'show-ignored']) $(id).addEventLis
 });
 $('sort').addEventListener('change', render);
 $('reset').addEventListener('click', () => {
+  if (!thresholdsReady || !state.domain || state.scanning) return;
+  thresholdRevision++;
   for (const id of ['query', 'min-width', 'min-height', 'min-size', 'type', 'source']) $(id).value = '';
   $('loaded').checked = false; $('show-ignored').checked = false; render();
   void saveViewFilters(filters()).catch(error => notice(error.message, true));
   queryRevision++;
   void saveQuery(state.domain, '').catch(error => notice(t(`搜索内容清除失败：{0}`, error.message), true));
-  void saveThresholds({ width: 0, height: 0, minBytes: 0 }).catch(error => notice(error.message, true));
+  void saveThresholds(state.domain, { width: 0, height: 0, minBytes: 0 }).catch(error => notice(error.message, true));
 });
-$('defaults').addEventListener('click', () => {
-  applyThresholds(DEFAULT_THRESHOLDS);
-  render();
-  void saveThresholds(DEFAULT_THRESHOLDS).catch(error => notice(error.message, true));
+$('defaults').addEventListener('click', async () => {
+  if (!thresholdsReady || !state.domain || state.scanning) return;
+  const domain = state.domain;
+  thresholdRevision++;
+  try { await resetThresholds(domain); if (domain === state.domain) await syncThresholds(); }
+  catch (error) { if (domain === state.domain) notice(error.message, true); }
 });
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
@@ -504,11 +535,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
   // gesture or replace another panel's current, possibly unfinished search.
   if (Object.keys(changes).every(key => key.startsWith('image-query:v1:') || key === THEME_KEY)) return;
   if (directoryChanged(changes)) { void reloadDirectory(); return; }
-  for (const [field, key] of Object.entries(THRESHOLD_KEYS)) {
-    if (changes[key] && document.activeElement !== $(thresholdInputs[field])) {
-      applyThresholds({ [field]: normalizeThreshold(changes[key].newValue ?? DEFAULT_THRESHOLDS[field], DEFAULT_THRESHOLDS[field]) });
-    }
-  }
+  if (thresholdChanges(changes, state.domain)) { void syncThresholds(true); }
+  // Threshold-only events must not rebuild previews or affect another site.
+  if (Object.keys(changes).every(key => key.startsWith('filters:site:') || key === 'filters:width' || key === 'filters:height' || key === 'filters:minBytes')) return;
   const xpathChange = changes[xpathStorageKey(state.domain)];
   const exclusionsChange = changes[exclusionsStorageKey(state.domain)];
   if (state.tab && ((xpathChange && (xpathChange.newValue || '') !== state.xpath) ||
@@ -567,6 +596,7 @@ chrome.tabs.onRemoved.addListener(tabId => {
   if (tabId !== state.tab?.id) return;
   releasePreviews();
   state.retryBatch = null;
+  thresholdRevision++; thresholdsReady = false; thresholdCards.clear();
   state.generation++; state.tab = null; state.domain = ''; state.xpath = ''; state.exclusions = ''; state.items = []; state.selected.clear(); state.scanning = false;
   sourceLoading = false;
   $('query').value = ''; queryRevision++;
@@ -594,7 +624,6 @@ try {
   readyFirst = await loadReadyFirst();
   if (pinnedId) panelTabId = (await chrome.tabs.getCurrent())?.id ?? null;
   await reloadDirectory();
-  applyThresholds(await loadThresholds());
   applyViewFilters(await loadViewFilters());
   const tab = pinnedId ? await chrome.tabs.get(pinnedId) : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
   await refresh(tab);

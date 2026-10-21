@@ -1,5 +1,5 @@
 import { t } from './i18n.js';
-import { DEFAULT_THRESHOLDS, THRESHOLD_KEYS, normalizeThreshold, ignoreStorageKey } from './metadata.js';
+import { DEFAULT_THRESHOLDS, THRESHOLD_KEYS, normalizeThreshold, ignoreStorageKey, siteDomain } from './metadata.js';
 
 export const VIEW_FILTERS_KEY = 'filters:view:v1';
 export function normalizeViewFilters(value = {}) {
@@ -35,15 +35,50 @@ export function saveQuery(domain, value) {
   return operation;
 }
 
-export async function loadThresholds() {
-  const values = await chrome.storage.local.get(Object.values(THRESHOLD_KEYS));
-  return Object.fromEntries(Object.entries(THRESHOLD_KEYS).map(([field, key]) =>
-    [field, normalizeThreshold(values[key] ?? DEFAULT_THRESHOLDS[field], DEFAULT_THRESHOLDS[field])]));
+export const GLOBAL_DIMENSION_KEYS = { width: THRESHOLD_KEYS.width, height: THRESHOLD_KEYS.height };
+const thresholdFields = Object.keys(DEFAULT_THRESHOLDS);
+function validDomain(domain) {
+  return typeof domain === 'string' && !!domain && siteDomain(`https://${domain}`) === domain;
 }
-
-export async function saveThresholds(values) {
-  await chrome.storage.local.set(Object.fromEntries(Object.entries(values).map(([field, value]) =>
-    [THRESHOLD_KEYS[field], normalizeThreshold(value, DEFAULT_THRESHOLDS[field])])));
+export function thresholdStorageKey(domain, field) {
+  if (!validDomain(domain) || !thresholdFields.includes(field)) throw new Error(t('无法确定当前网站，未保存筛选设置。'));
+  return `filters:site:v1:${domain}:${field}`;
+}
+function storedThreshold(value, fallback) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+export function thresholdChanges(changes, domain) {
+  return Object.keys(GLOBAL_DIMENSION_KEYS).some(field => changes[GLOBAL_DIMENSION_KEYS[field]]) ||
+    (validDomain(domain) && thresholdFields.some(field => changes[thresholdStorageKey(domain, field)]));
+}
+export async function loadGlobalDimensions() {
+  const values = await chrome.storage.local.get(Object.values(GLOBAL_DIMENSION_KEYS));
+  return Object.fromEntries(Object.entries(GLOBAL_DIMENSION_KEYS).map(([field, key]) =>
+    [field, storedThreshold(values[key], DEFAULT_THRESHOLDS[field])]));
+}
+export function saveGlobalDimensions(values) {
+  const entries = Object.entries(values);
+  if (!entries.length || entries.some(([field, value]) => !Object.hasOwn(GLOBAL_DIMENSION_KEYS, field) ||
+      typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 100000)) {
+    throw new Error(t('请输入 0 至 100000 的整数。'));
+  }
+  return chrome.storage.local.set(Object.fromEntries(entries.map(([field, value]) => [GLOBAL_DIMENSION_KEYS[field], value])));
+}
+export async function loadThresholds(domain) {
+  const siteKeys = validDomain(domain) ? thresholdFields.map(field => thresholdStorageKey(domain, field)) : [];
+  const values = await chrome.storage.local.get([...Object.values(GLOBAL_DIMENSION_KEYS), ...siteKeys]);
+  return Object.fromEntries(thresholdFields.map(field => {
+    const fallback = field === 'minBytes' ? DEFAULT_THRESHOLDS.minBytes : storedThreshold(values[GLOBAL_DIMENSION_KEYS[field]], DEFAULT_THRESHOLDS[field]);
+    return [field, storedThreshold(validDomain(domain) ? values[thresholdStorageKey(domain, field)] : undefined, fallback)];
+  }));
+}
+export async function saveThresholds(domain, values) {
+  const entries = Object.entries(values).map(([field, value]) =>
+    [thresholdStorageKey(domain, field), normalizeThreshold(value, DEFAULT_THRESHOLDS[field])]);
+  if (entries.length) await chrome.storage.local.set(Object.fromEntries(entries));
+}
+export async function resetThresholds(domain) {
+  await chrome.storage.local.remove(thresholdFields.map(field => thresholdStorageKey(domain, field)));
 }
 
 export async function loadIgnored(domain) {

@@ -73,3 +73,9 @@ npx --yes @fission-ai/openspec@1.14.3 archive <change-name>
 在扩展 Service Worker 控制台使用 `__imageTakenBadgeDiagnostics.get(tabId)` 检查最后一次徽标状态、数量或失败原因。先确认实际加载目录与 Manifest，再判断代码是否生效；不要将其他扩展的 offscreen 错误当成 ImageTaken 的后台错误。
 
 素材源文件及生成说明见 [Logo](logo.md) 和 [插图](illustrations.md)。
+
+## 网站阈值与默认配置
+
+宽高体积按顶层 hostname 分字段保存在 `filters:site:v1:<hostname>:width|height|minBytes`，不含协议、端口或路径；不同子域名独立。未保存的宽高字段继承 `filters:width` / `filters:height` 的全局默认值，未保存体积使用 2048 字节。三个字段均以显式 0 表示取消限制。
+
+设置页只提供全局默认宽高；沿用旧全局宽高键兼容升级。旧 `filters:minBytes` 保留供回退，新逻辑不读取它，也不将其分配给首次打开的网站。恢复默认删除当前网站三个覆盖键；清除筛选则保存当前网站三个零值。读取设置不会创建覆盖键。图库与后台徽标共用同一个有效阈值解析器。

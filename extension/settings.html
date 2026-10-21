@@ -34,6 +34,18 @@
         </select>
       </label>
     </section>
+    <section class="settings-group" aria-labelledby="filter-settings-heading">
+      <h3 id="filter-settings-heading">图片筛选</h3>
+      <label class="setting-row" for="default-min-width">
+        <span><strong>全局默认最低宽度</strong></span>
+        <span class="dimension-input"><input id="default-min-width" type="number" min="0" max="100000" step="1" aria-describedby="threshold-help" disabled><span>px</span></span>
+      </label>
+      <label class="setting-row" for="default-min-height">
+        <span><strong>全局默认最低高度</strong></span>
+        <span class="dimension-input"><input id="default-min-height" type="number" min="0" max="100000" step="1" aria-describedby="threshold-help" disabled><span>px</span></span>
+      </label>
+      <p id="threshold-help" class="settings-note">未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。</p>
+    </section>
     <section class="settings-group" aria-labelledby="title-settings-heading">
       <h3 id="title-settings-heading">标题与文件夹</h3>
       <label class="setting-row" for="auto-clean-title">

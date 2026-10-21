@@ -1,3 +1,4 @@
+import { GLOBAL_DIMENSION_KEYS, loadGlobalDimensions, saveGlobalDimensions } from './preferences.js';
 import { t } from './i18n.js';
 import { initI18n, bindDocument, localizeDocument, LANGUAGE_KEY, languagePreference, translateRendered } from './i18n.js';
 import { TITLE_CLEANUP_KEY, loadTitleCleanup, READY_FIRST_KEY, loadReadyFirst } from './settings.js';
@@ -66,3 +67,46 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   for (const { toggle, key } of controls) if (changes[key]) toggle.checked = key === READY_FIRST_KEY ? changes[key].newValue !== false : changes[key].newValue === true;
 });
+
+const dimensions = { width: document.getElementById('default-min-width'), height: document.getElementById('default-min-height') };
+let dimensionsReady = false, dimensionRevision = 0;
+let dimensionWrites = Promise.resolve();
+async function syncDimensions() {
+  const revision = ++dimensionRevision;
+  try {
+    const values = await loadGlobalDimensions();
+    if (revision !== dimensionRevision) return;
+    for (const [field, input] of Object.entries(dimensions)) {
+      if (!dimensionsReady || document.activeElement !== input) { input.value = values[field]; input.removeAttribute('aria-invalid'); }
+      input.disabled = false;
+    }
+    dimensionsReady = true;
+  } catch (error) {
+    if (revision !== dimensionRevision) return;
+    dimensionsReady = false;
+    for (const input of Object.values(dimensions)) input.disabled = true;
+    status.textContent = t('无法读取设置：{0}', error.message);
+  }
+}
+for (const [field, input] of Object.entries(dimensions)) {
+  input.addEventListener('blur', () => { if (dimensionsReady) void dimensionWrites.then(() => syncDimensions()); });
+  input.addEventListener('input', async () => {
+    if (!dimensionsReady) return;
+    const value = input.valueAsNumber;
+    if (!input.value || !input.validity.valid || !Number.isInteger(value)) {
+      input.setAttribute('aria-invalid', 'true');
+      status.textContent = t('请输入 0 至 100000 的整数。');
+      return;
+    }
+    input.removeAttribute('aria-invalid');
+    dimensionRevision++;
+    const operation = dimensionWrites.then(() => saveGlobalDimensions({ [field]: value }));
+    dimensionWrites = operation.catch(() => {});
+    try { await operation; if (input.valueAsNumber === value) status.textContent = t('已保存'); }
+    catch (error) { if (input.valueAsNumber === value) status.textContent = t('保存失败：{0}', error.message); }
+  });
+}
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && Object.values(GLOBAL_DIMENSION_KEYS).some(key => changes[key])) void syncDimensions();
+});
+await syncDimensions();

@@ -8,14 +8,18 @@
 .setting-row>span { flex: 1; min-width: 0; }
 .setting-row strong { display: block; font-size: 13px; font-weight: 550; }
 .setting-description { display: block; color: var(--muted); font-size: 12px; line-height: 1.8; margin-top: 6px; }
-.setting-row input { appearance: none; flex-shrink: 0; width: 36px; height: 21px; border: 1px solid var(--switch-border); border-radius: 12px; background: var(--switch-off); position: relative; margin: 0; }
-.setting-row input::after { content: ''; position: absolute; width: 15px; height: 15px; top: 2px; left: 2px; border-radius: 50%; background: var(--switch-knob); }
-.setting-row input:checked { background: var(--switch-on); border-color: var(--switch-on); }
-.setting-row input:checked::after { left: 17px; }
-.setting-row input:disabled { opacity: .5; }
+.setting-row input[type="checkbox"] { appearance: none; flex-shrink: 0; width: 36px; height: 21px; border: 1px solid var(--switch-border); border-radius: 12px; background: var(--switch-off); position: relative; margin: 0; }
+.setting-row input[type="checkbox"]::after { content: ''; position: absolute; width: 15px; height: 15px; top: 2px; left: 2px; border-radius: 50%; background: var(--switch-knob); }
+.setting-row input[type="checkbox"]:checked { background: var(--switch-on); border-color: var(--switch-on); }
+.setting-row input[type="checkbox"]:checked::after { left: 17px; }
+.setting-row input[type="checkbox"]:disabled { opacity: .5; }
 .settings-note { margin: 0; padding: 0 16px 16px; color: var(--muted); font-size: 11px; }
 #settings-status { min-height: 20px; color: var(--muted); font-size: 12px; }
 
 .setting-row select { flex-shrink: 0; max-width: 45%; padding: 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); font-size: 12px; }
 .setting-row[for="theme"], .setting-row[for="language"] { padding-bottom: 18px; }
 
+
+.setting-row .dimension-input { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.dimension-input input { width: 90px; min-width: 0; padding: 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--accent); font: inherit; }
+.dimension-input input:invalid, .dimension-input input[aria-invalid="true"] { border-color: #c44848; }

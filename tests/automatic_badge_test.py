@@ -100,6 +100,17 @@ try:
         badge('3')
         worker.evaluate("chrome.storage.local.set({'filters:width':1000})"); badge('0')
         worker.evaluate("chrome.storage.local.set({'filters:width':50})"); badge('3')
+        second = context.new_page(); second.goto(origin.replace('127.0.0.1','localhost')+'/new')
+        second_id = worker.evaluate('async url=>(await chrome.tabs.query({})).find(t=>t.url===url).id', second.url)
+        badge('1',second_id)
+        threshold_requests = dict(counts)
+        worker.evaluate("chrome.storage.local.set({'filters:site:v1:127.0.0.1:width':1000})"); badge('0'); badge('1',second_id)
+        worker.evaluate("chrome.storage.local.set({'filters:width':1000})"); badge('0'); badge('0',second_id)
+        worker.evaluate("chrome.storage.local.set({'filters:width':50})"); badge('0'); badge('1',second_id)
+        worker.evaluate("chrome.storage.local.remove('filters:site:v1:127.0.0.1:width')"); badge('3')
+        assert counts == threshold_requests, 'threshold changes requested images'
+        second.close()
+
         worker.evaluate("chrome.storage.local.remove('ignored:v1:127.0.0.1')"); badge('4')
         source.wait_for_timeout(1000)
         worker.evaluate('''async tabId=>{

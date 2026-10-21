@@ -141,6 +141,88 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(THRESHOLD_IMAGES.get(path, SMALL if path in ('/small.png', '/pseudo.png') else PNG))
 
 
+def test_site_threshold_settings(context, worker, extension_id, origin):
+    saved = worker.evaluate('async () => await chrome.storage.local.get(null)')
+    keys = [key for key in saved if key.startswith(('filters:', 'image-query:', 'xpath:', 'excluded-selectors:', 'ignored:'))]
+    worker.evaluate('keys => chrome.storage.local.remove(keys)', keys)
+    pages = []
+    try:
+        panels = []
+        sources = []
+        for host_origin in (origin, origin.replace('127.0.0.1', 'localhost')):
+            source = context.new_page(); pages.append(source); sources.append(source)
+            source.goto(host_origin + '/frame')
+            tab_id = worker.evaluate('async url => (await chrome.tabs.query({})).find(t=>t.url===url).id', source.url)
+            panel = context.new_page(); pages.append(panel); panels.append(panel)
+            panel.goto(f'chrome-extension://{extension_id}/panel.html?tab={tab_id}')
+            expect(panel.locator('.page-context')).to_have_attribute('data-frames', '1')
+            panel.locator('#filters').evaluate('(el)=>el.open=true')
+            expect(panel.locator('#min-width')).to_be_enabled()
+        a, b = panels
+        settings = context.new_page(); pages.append(settings)
+        settings.goto(f'chrome-extension://{extension_id}/settings.html')
+        width, height = settings.locator('#default-min-width'), settings.locator('#default-min-height')
+        expect(width).to_be_enabled(); expect(width).to_have_value('50')
+        expect(height).to_have_value('50')
+        expect(a.locator('.card input').first).to_be_enabled()
+        a.locator('.card input').first.check()
+        a.evaluate("window.thresholdImage=document.querySelector('#gallery img')")
+        a.locator('#site-rules').evaluate('(el)=>el.open=true')
+        a.locator('#xpath').fill('//img[@data-unsaved]')
+        width.fill('200'); expect(width).to_be_enabled()
+        height.fill('100'); expect(height).to_be_enabled()
+        expect(a.locator('#min-width')).to_have_value('200'); expect(b.locator('#min-height')).to_have_value('100')
+        assert a.evaluate("thresholdImage===document.querySelector('#gallery img')"), 'default changes recreated previews'
+        expect(a.locator('.card input').first).to_be_checked()
+        expect(a.locator('#xpath')).to_have_value('//img[@data-unsaved]')
+        settings.reload(); expect(width).to_have_value('200'); expect(height).to_have_value('100')
+        a.locator('#min-width').fill('0'); a.locator('#min-height').fill('20'); a.locator('#min-size').fill('0')
+        a.locator('#query').focus()
+        expect(b.locator('#min-width')).to_have_value('200')
+        width.fill('300'); expect(width).to_be_enabled(); height.fill('120'); expect(height).to_be_enabled()
+        expect(a.locator('#min-width')).to_have_value('0'); expect(a.locator('#min-height')).to_have_value('20')
+        expect(b.locator('#min-width')).to_have_value('300'); expect(b.locator('#min-height')).to_have_value('120')
+        a.reload(); expect(a.locator('.page-context')).to_have_attribute('data-frames','1')
+        expect(a.locator('#min-width')).to_have_value('0'); expect(a.locator('#min-size')).to_have_value('0')
+        a.locator('#filters').evaluate('(el)=>el.open=true')
+        a.locator('#defaults').click()
+        expect(a.locator('#min-width')).to_have_value('300'); expect(a.locator('#min-height')).to_have_value('120'); expect(a.locator('#min-size')).to_have_value('2')
+        width.fill('200'); expect(width).to_be_enabled()
+        expect(a.locator('#min-width')).to_have_value('200')
+        a.locator('#reset').click()
+        expect(a.locator('#min-width')).to_have_value('0'); expect(b.locator('#min-width')).to_have_value('200')
+        a.reload(); expect(a.locator('.page-context')).to_have_attribute('data-frames','1')
+        expect(a.locator('#min-width')).to_have_value('0'); expect(a.locator('#min-height')).to_have_value('0'); expect(a.locator('#min-size')).to_have_value('0')
+        # Navigation must load the new source hostname, without copying the previous site's zero values.
+        sources[0].goto(origin.replace('127.0.0.1','localhost') + '/frame?navigation=1')
+        a.get_by_role('button', name='重新扫描页面', exact=True).click()
+        expect(a.locator('.page-context')).to_have_attribute('data-frames','1')
+        expect(a.locator('#min-width')).to_have_value('200'); expect(a.locator('#min-height')).to_have_value('120')
+        # Invalid entries never overwrite a valid persisted default.
+        for invalid in ('', '-1', '1.5', '100001'):
+            width.fill(invalid)
+            expect(settings.locator('#settings-status')).to_have_text('请输入 0 至 100000 的整数。')
+            assert worker.evaluate("async ()=>(await chrome.storage.local.get('filters:width'))['filters:width']") == 200
+        width.fill('200'); expect(width).to_be_enabled()
+        settings.evaluate("() => {window.originalThresholdSet=chrome.storage.local.set;chrome.storage.local.set=async()=>{throw new Error('threshold write denied')};}")
+        width.fill('333')
+        expect(settings.locator('#settings-status')).to_have_text('保存失败：threshold write denied')
+        assert worker.evaluate("async ()=>(await chrome.storage.local.get('filters:width'))['filters:width']") == 200
+        settings.evaluate('() => {chrome.storage.local.set=window.originalThresholdSet;}')
+        width.fill('200'); expect(width).to_be_enabled()
+        for page in (settings, a, b):
+            page.set_viewport_size({'width':320,'height':900})
+            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+        settings.screenshot(path=str(OUTPUT/'threshold-settings.png'))
+        print('Site thresholds: global defaults, per-site overrides, reset, navigation, invalid inputs and save errors OK')
+    finally:
+        for page in reversed(pages): page.close()
+        current = worker.evaluate('async () => Object.keys(await chrome.storage.local.get(null))')
+        changed = [key for key in current if key.startswith(('filters:', 'image-query:', 'xpath:', 'excluded-selectors:', 'ignored:'))]
+        worker.evaluate('keys=>chrome.storage.local.remove(keys)', changed)
+        worker.evaluate('values=>chrome.storage.local.set(values)', {key:saved[key] for key in keys})
+
+
 def test_settings(context, worker, extension_id, origin):
     source = context.new_page()
     source.goto(origin + '/frame')
@@ -827,9 +909,11 @@ def main():
             panel.locator('#min-height').fill('123')
             panel.locator('#min-size').fill('2.5')
             panel.wait_for_function('''async () => {
-              const s=await chrome.storage.local.get(['filters:width','filters:height','filters:minBytes']);
-              return s['filters:width']===321 && s['filters:height']===123 && s['filters:minBytes']===2560;
+              const prefix='filters:site:v1:127.0.0.1:';
+              const s=await chrome.storage.local.get([prefix+'width',prefix+'height',prefix+'minBytes']);
+              return s[prefix+'width']===321 && s[prefix+'height']===123 && s[prefix+'minBytes']===2560;
             }''')
+            assert panel.evaluate("async () => (await (await import('./preferences.js')).loadThresholds('localhost')).width") == 50
             panel.reload()
             expect(panel.locator('.page-context')).to_have_attribute('data-frames', '2')
             expect(panel.locator('#min-width')).to_have_value('321')
@@ -1084,6 +1168,7 @@ def main():
             test_notion_layout(panel, OUTPUT)
             test_query_cache(context, worker, extension_id, source, tab_id, origin)
             test_settings(context, worker, extension_id, origin)
+            test_site_threshold_settings(context, worker, extension_id, origin)
             assert not errors, errors
 
             # A navigated frame must never service an obsolete read by recycled frame ID.

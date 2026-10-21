@@ -2,6 +2,7 @@ import { t } from './i18n.js';
 import { imageType } from './lib.js';
 
 export const DEFAULT_THRESHOLDS = Object.freeze({ width: 50, height: 50, minBytes: 2048 });
+// Width/height remain global defaults; minBytes is retained only for legacy rollback.
 export const THRESHOLD_KEYS = Object.freeze({ width: 'filters:width', height: 'filters:height', minBytes: 'filters:minBytes' });
 
 export function normalizeThreshold(value, fallback = 0) {

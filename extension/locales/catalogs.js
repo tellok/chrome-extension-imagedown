@@ -259,7 +259,14 @@ export const catalogs = {
     "浏览器保留的原始资源大小": "Original resource size retained by the browser",
     "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "Read original image data retained by the browser without requesting the image URL again.",
     " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。": " Original file data already acquired is reused for downloads; if only a thumbnail is available, the original file must still be read.",
-    "默认开启。预览加载或重试成功时会自动调整顺序。": "Enabled by default. The order updates automatically when previews load or retries succeed."
+    "默认开启。预览加载或重试成功时会自动调整顺序。": "Enabled by default. The order updates automatically when previews load or retries succeed.",
+    "图片筛选": "Image filtering",
+    "全局默认最低宽度": "Global default minimum width",
+    "全局默认最低高度": "Global default minimum height",
+    "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。": "Sites without their own settings use the global default dimensions. Site settings take priority; 0 means no limit. Minimum file size defaults to 2 KiB and is saved per site.",
+    "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。": "Thresholds are saved per site. Unset dimensions use global defaults; reset to inherit again. Use 0 for no limit. ≈ means estimated size; images with unknown dimensions or sizes remain visible.",
+    "请输入 0 至 100000 的整数。": "Enter an integer from 0 to 100000.",
+    "无法确定当前网站，未保存筛选设置。": "Cannot identify the current site; filters were not saved."
   },
   "ja": {
     " · 失败 {0}": " · 失敗 {0}",
@@ -520,7 +527,14 @@ export const catalogs = {
     "浏览器保留的原始资源大小": "ブラウザーに保持された元リソースのサイズ",
     "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "画像 URL に再リクエストせず、ブラウザーに保持された元画像データを直接読み取りました。",
     " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。": " 取得済みの元ファイルデータはダウンロードに再利用します。サムネイルしかない場合は、元ファイルを取得します。",
-    "默认开启。预览加载或重试成功时会自动调整顺序。": "デフォルトで有効です。プレビューの読み込みや再試行が成功すると、自動で並び替えます。"
+    "默认开启。预览加载或重试成功时会自动调整顺序。": "デフォルトで有効です。プレビューの読み込みや再試行が成功すると、自動で並び替えます。",
+    "图片筛选": "画像フィルター",
+    "全局默认最低宽度": "全体の既定の最小幅",
+    "全局默认最低高度": "全体の既定の最小高さ",
+    "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。": "個別設定のないサイトには全体の既定の幅と高さを使用します。サイト設定が優先され、0 は制限なしです。最小ファイルサイズは既定で 2 KiB、サイトごとに保存します。",
+    "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。": "しきい値はサイトごとに保存します。未設定の幅と高さは全体の既定値を使用し、リセットで再び引き継ぎます。0 は制限なし。≈ は推定サイズで、サイズ不明の画像も表示します。",
+    "请输入 0 至 100000 的整数。": "0 から 100000 までの整数を入力してください。",
+    "无法确定当前网站，未保存筛选设置。": "現在のサイトを特定できないため、フィルターは保存されませんでした。"
   },
   "de": {
     " · 失败 {0}": " · Fehlgeschlagen {0}",
@@ -781,7 +795,14 @@ export const catalogs = {
     "浏览器保留的原始资源大小": "Im Browser gespeicherte Originalressourcengröße",
     "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "Originalbilddaten direkt aus dem Browser gelesen, ohne die Bild-URL erneut anzufordern.",
     " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。": " Bereits gelesene Originaldateidaten werden für Downloads wiederverwendet. Liegt nur eine Vorschau vor, wird die Originaldatei noch eingelesen.",
-    "默认开启。预览加载或重试成功时会自动调整顺序。": "Standardmäßig aktiviert. Die Reihenfolge wird nach erfolgreichem Laden oder erneutem Versuch automatisch angepasst."
+    "默认开启。预览加载或重试成功时会自动调整顺序。": "Standardmäßig aktiviert. Die Reihenfolge wird nach erfolgreichem Laden oder erneutem Versuch automatisch angepasst.",
+    "图片筛选": "Bildfilter",
+    "全局默认最低宽度": "Globale Standard-Mindestbreite",
+    "全局默认最低高度": "Globale Standard-Mindesthöhe",
+    "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。": "Websites ohne eigene Einstellungen verwenden die globalen Standardmaße. Website-Einstellungen haben Vorrang; 0 bedeutet unbegrenzt. Die minimale Dateigröße beträgt standardmäßig 2 KiB und wird pro Website gespeichert.",
+    "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。": "Grenzwerte werden pro Website gespeichert. Nicht gesetzte Maße verwenden globale Standardwerte; Zurücksetzen stellt die Übernahme wieder her. 0 bedeutet unbegrenzt. ≈ kennzeichnet Schätzungen; unbekannte Größen bleiben sichtbar.",
+    "请输入 0 至 100000 的整数。": "Geben Sie eine ganze Zahl von 0 bis 100000 ein.",
+    "无法确定当前网站，未保存筛选设置。": "Die aktuelle Website ist unbekannt; Filter wurden nicht gespeichert."
   },
   "ko": {
     " · 失败 {0}": " · 실패 {0}",
@@ -1042,7 +1063,14 @@ export const catalogs = {
     "浏览器保留的原始资源大小": "브라우저에 보관된 원본 리소스 크기",
     "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "이미지 URL을 다시 요청하지 않고 브라우저에 보관된 원본 이미지 데이터를 직접 읽었습니다.",
     " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。": " 이미 확보한 원본 파일 데이터는 다운로드에 재사용합니다. 썸네일만 있는 경우에는 원본 파일을 추가로 가져옵니다.",
-    "默认开启。预览加载或重试成功时会自动调整顺序。": "기본적으로 켜져 있습니다. 미리보기 로드 또는 재시도가 성공하면 순서가 자동으로 조정됩니다."
+    "默认开启。预览加载或重试成功时会自动调整顺序。": "기본적으로 켜져 있습니다. 미리보기 로드 또는 재시도가 성공하면 순서가 자동으로 조정됩니다.",
+    "图片筛选": "이미지 필터",
+    "全局默认最低宽度": "전체 기본 최소 너비",
+    "全局默认最低高度": "전체 기본 최소 높이",
+    "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。": "개별 설정이 없는 사이트는 전체 기본 크기를 사용합니다. 사이트 설정이 우선하며 0은 제한 없음을 뜻합니다. 최소 파일 크기는 기본 2 KiB이며 사이트별로 저장됩니다.",
+    "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。": "임계값은 사이트별로 저장됩니다. 미설정 크기는 전체 기본값을 사용하며 초기화하면 다시 따릅니다. 0은 제한 없음입니다. ≈는 추정 크기이며 크기 미상의 이미지도 표시됩니다.",
+    "请输入 0 至 100000 的整数。": "0부터 100000까지의 정수를 입력하세요.",
+    "无法确定当前网站，未保存筛选设置。": "현재 사이트를 확인할 수 없어 필터를 저장하지 않았습니다."
   },
   "fr": {
     " · 失败 {0}": " · Échecs {0}",
@@ -1303,7 +1331,14 @@ export const catalogs = {
     "浏览器保留的原始资源大小": "Taille de la ressource originale conservée par le navigateur",
     "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "Données originales lues dans le navigateur sans nouvelle requête vers l’URL de l’image.",
     " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。": " Les données du fichier original déjà obtenues sont réutilisées pour le téléchargement. Si seule une miniature est disponible, le fichier original doit encore être lu.",
-    "默认开启。预览加载或重试成功时会自动调整顺序。": "Activé par défaut. L’ordre est ajusté automatiquement après le chargement d’un aperçu ou une nouvelle tentative réussie."
+    "默认开启。预览加载或重试成功时会自动调整顺序。": "Activé par défaut. L’ordre est ajusté automatiquement après le chargement d’un aperçu ou une nouvelle tentative réussie.",
+    "图片筛选": "Filtrage des images",
+    "全局默认最低宽度": "Largeur minimale globale par défaut",
+    "全局默认最低高度": "Hauteur minimale globale par défaut",
+    "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。": "Les sites sans réglages propres utilisent les dimensions globales par défaut. Les réglages du site sont prioritaires ; 0 signifie sans limite. La taille minimale est de 2 KiB par défaut, enregistrée par site.",
+    "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。": "Les seuils sont enregistrés par site. Les dimensions non définies utilisent les valeurs globales ; réinitialiser rétablit cet héritage. 0 signifie sans limite. ≈ indique une estimation ; les tailles inconnues restent visibles.",
+    "请输入 0 至 100000 的整数。": "Saisissez un entier de 0 à 100000.",
+    "无法确定当前网站，未保存筛选设置。": "Site actuel introuvable ; les filtres n’ont pas été enregistrés."
   },
   "zh-CN": {
     " · 失败 {0}": " · 失败 {0}",
@@ -1564,7 +1599,14 @@ export const catalogs = {
     "浏览器保留的原始资源大小": "浏览器保留的原始资源大小",
     "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。",
     " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。": " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。",
-    "默认开启。预览加载或重试成功时会自动调整顺序。": "默认开启。预览加载或重试成功时会自动调整顺序。"
+    "默认开启。预览加载或重试成功时会自动调整顺序。": "默认开启。预览加载或重试成功时会自动调整顺序。",
+    "图片筛选": "图片筛选",
+    "全局默认最低宽度": "全局默认最低宽度",
+    "全局默认最低高度": "全局默认最低高度",
+    "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。": "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。",
+    "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。": "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。",
+    "请输入 0 至 100000 的整数。": "请输入 0 至 100000 的整数。",
+    "无法确定当前网站，未保存筛选设置。": "无法确定当前网站，未保存筛选设置。"
   },
   "zh-TW": {
     " · 失败 {0}": " · 失敗 {0}",
@@ -1825,6 +1867,13 @@ export const catalogs = {
     "浏览器保留的原始资源大小": "瀏覽器保留的原始資源大小",
     "直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。": "直接讀取瀏覽器保留的原始圖片資料，沒有透過圖片 URL 重新請求。",
     " 已取得的原文件数据会直接复用于下载；只有缩略图时才继续读取原文件。": " 已取得的原始檔案資料會直接重用於下載；只有縮圖時才繼續讀取原始檔案。",
-    "默认开启。预览加载或重试成功时会自动调整顺序。": "預設開啟。預覽載入或重試成功時會自動調整順序。"
+    "默认开启。预览加载或重试成功时会自动调整顺序。": "預設開啟。預覽載入或重試成功時會自動調整順序。",
+    "图片筛选": "圖片篩選",
+    "全局默认最低宽度": "全域預設最低寬度",
+    "全局默认最低高度": "全域預設最低高度",
+    "未单独设置的网站使用全局默认宽高；网站设置优先，0 表示不限制。最低体积默认 2 KiB，按网站保存。": "未單獨設定的網站使用全域預設寬高；網站設定優先，0 表示不限制。最低體積預設 2 KiB，按網站儲存。",
+    "阈值按网站保存，未设置的宽高使用全局默认值；恢复默认可重新继承。设为 0 取消限制。≈ 表示估算体积；尺寸或体积未知的图片仍会保留。": "閾值按網站儲存，未設定的寬高使用全域預設值；恢復預設可重新繼承。設為 0 取消限制。≈ 表示估算體積；尺寸或體積未知的圖片仍會保留。",
+    "请输入 0 至 100000 的整数。": "請輸入 0 至 100000 的整數。",
+    "无法确定当前网站，未保存筛选设置。": "無法確定目前網站，未儲存篩選設定。"
   }
 };
