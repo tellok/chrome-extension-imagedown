@@ -217,11 +217,19 @@ def test_threshold_override_controls(context, worker, extension_id, origin):
             for viewport in (320,900):
                 panel.set_viewport_size({'width':viewport,'height':1000})
                 assert panel.evaluate('document.documentElement.scrollWidth <= innerWidth')
-                assert panel.evaluate('''() => [...document.querySelectorAll('.dimension-control')].every(group => {
-                  const input=group.querySelector('input').getBoundingClientRect();
-                  const button=group.querySelector('button').getBoundingClientRect();
-                  return input.right <= button.left && button.right <= innerWidth;
-                })''')
+                assert panel.evaluate('''() => {
+                  const fields=['min-width','min-height','min-size','type'].map(id=>document.getElementById(id).getBoundingClientRect());
+                  const widths=fields.map(rect=>rect.width);
+                  return Math.max(...widths)-Math.min(...widths)<=1 &&
+                    [...document.querySelectorAll('.dimension-control')].every(group => {
+                      const input=group.querySelector('input').getBoundingClientRect();
+                      const button=group.querySelector('button').getBoundingClientRect();
+                      const unit=group.querySelector('.dimension-value>span').getBoundingClientRect();
+                      return button.left>=input.left && button.right<=input.right &&
+                        button.top>=input.top && button.bottom<=input.bottom &&
+                        unit.right<=button.left && unit.left>=input.left && button.right<=innerWidth;
+                    });
+                }''')
                 if viewport == 320: panel.screenshot(path=str(OUTPUT/f'threshold-controls-{theme}-narrow.png'))
             reset_height.focus(); assert reset_height.evaluate('(el)=>document.activeElement===el')
             panel.screenshot(path=str(OUTPUT/f'threshold-controls-{theme}.png'))
