@@ -1,0 +1,42 @@
+schema: spec-driven
+
+context: |
+  Language: zh-CN
+  All artifacts must be written in zh-CN.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+  Project: ImageTaken, a Chrome Manifest V3 image downloader, version 0.4.3.
+  Runtime: native JavaScript modules, no runtime dependencies, Chrome 116+.
+  Product behavior belongs in openspec/specs; README is a short user/developer entry point.
+  Existing implementation and tests resolve discrepancies in historical documentation.
+  Development commands: npm run check, npm test, npm run package.
+  Browser integration tests use Playwright and Pillow with disposable profiles.
+  A documentation baseline records already shipped behavior; it is not a proposal to reimplement it.
+
+rules:
+  specs:
+    - State observable behavior and testable failure cases; keep internal implementation details in design or development docs.
+    - Explicitly distinguish complete original image data from static pixel thumbnails.
+  design:
+    - For retrospective documentation, cite verified commits, implementation paths, and validation evidence.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
