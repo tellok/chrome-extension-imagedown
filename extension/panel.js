@@ -1,3 +1,5 @@
+import { saveConfig } from './config-lock.js';
+import { SYNC_IMPORT_KEY, SYNC_STATE_KEY } from './settings-sync-codec.js';
 import { loadEffectivePreferences } from './effective-preferences.js';
 import { REMOTE_RULES_KEY, rulesChanged } from './remote-rules.js';
 import { t } from './i18n.js';
@@ -537,7 +539,7 @@ async function applySiteRules(clear = false) {
     if (xpath) document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
     for (const selector of exclusions.split('\n').map(s => s.trim()).filter(Boolean)) document.querySelector(selector);
     state.xpath = xpath; state.exclusions = exclusions;
-    await chrome.storage.local.set({ [xpathStorageKey(domain)]: xpath, [exclusionsStorageKey(domain)]: exclusions });
+    await saveConfig({ [xpathStorageKey(domain)]: xpath, [exclusionsStorageKey(domain)]: exclusions });
     if (state.domain === domain) await refresh(tab);
   } catch (error) {
     $('xpath-status').textContent = t(`网站规则未保存：{0}`, error.message);
@@ -670,16 +672,22 @@ for (const id of ['type', 'source', 'loaded', 'show-ignored']) $(id).addEventLis
   void saveViewFilters(filters()).catch(error => notice(error.message, true));
 });
 $('sort').addEventListener('change', render);
-$('reset').addEventListener('click', () => {
+$('reset').addEventListener('click', async () => {
   if (!thresholdsReady || !state.domain || state.scanning) return;
-  thresholdRevision++;
-  for (const id of ['query', 'min-width', 'min-height', 'min-size', 'type', 'source']) $(id).value = '';
-  thresholdState.values = { width: 0, height: 0, minBytes: 0 }; thresholdState.overrides = { ...thresholdState.values }; updateDimensionInputs();
-  $('loaded').checked = false; $('show-ignored').checked = false; render();
-  void saveViewFilters(filters()).catch(error => notice(error.message, true));
-  queryRevision++;
-  void saveQuery(state.domain, '', Object.hasOwn(effectiveState?.remoteOptions || {}, 'query')).catch(error => notice(t(`搜索内容清除失败：{0}`, error.message), true));
-  void queueThresholdSave(state.domain, { width: 0, height: 0, minBytes: 0 }).catch(error => notice(error.message, true));
+  const domain = state.domain;
+  thresholdRevision++; queryRevision++;
+  $('query').value = ''; $('type').value = ''; $('source').value = '';
+  $('loaded').checked = false; $('show-ignored').checked = false;
+  try {
+    // Queue all reset writes immediately, before any later user edits. Read the
+    // committed thresholds before displaying zeros so a reload cannot lose them.
+    await Promise.all([
+      saveQuery(domain, '', Object.hasOwn(effectiveState?.remoteOptions || {}, 'query')),
+      saveViewFilters({ type: '', source: '', loaded: false, showIgnored: false }),
+      queueThresholdSave(domain, { width: 0, height: 0, minBytes: 0 }),
+    ]);
+    if (domain === state.domain) await syncThresholds(true);
+  } catch (error) { notice(error.message, true); }
 });
 $('defaults').addEventListener('click', async () => {
   if (!thresholdsReady || !state.domain || state.scanning) return;
@@ -688,8 +696,27 @@ $('defaults').addEventListener('click', async () => {
   try { await thresholdWrites; await resetThresholds(domain); if (domain === state.domain) await syncThresholds(); }
   catch (error) { if (domain === state.domain) notice(error.message, true); }
 });
+async function syncPrompt() {
+  const values = await chrome.storage.local.get(SYNC_STATE_KEY);
+  $('sync-prompt').hidden = values[SYNC_STATE_KEY]?.state !== 'conflict';
+}
+void syncPrompt().catch(() => {});
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
+  if (changes[SYNC_STATE_KEY]) void syncPrompt().catch(() => {});
+  if (changes[SYNC_IMPORT_KEY]) {
+    if (changes[DOWNLOAD_MANIFEST_KEY]) { manifestRevision++; manifestEnabled = changes[DOWNLOAD_MANIFEST_KEY].newValue === true; manifestReady = true; manifestError = ''; }
+    if (changes[TITLE_CLEANUP_KEY]) titleEditor.setCleanup(changes[TITLE_CLEANUP_KEY].newValue === true);
+    if (changes[READY_FIRST_KEY]) readyFirst = changes[READY_FIRST_KEY].newValue !== false;
+    const domain = state.domain, generation = state.generation;
+    void loadIgnored(domain).then(values => {
+      if (domain !== state.domain || generation !== state.generation) return;
+      state.ignored = values; applyIgnored(); return syncEffective();
+    }).catch(error => notice(error.message, true));
+    return;
+  }
+  if (Object.keys(changes).every(key => key.startsWith('config-sync:') || key === 'settings:chrome-sync')) return;
+
   if (changes[REMOTE_RULES_KEY]) {
     if (rulesChanged(changes[REMOTE_RULES_KEY])) void syncEffective();
     if (Object.keys(changes).length === 1) return;

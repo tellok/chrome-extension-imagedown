@@ -1,3 +1,4 @@
+import { SYNC_IMPORT_KEY } from './settings-sync-codec.js';
 import { getEffectivePreferences } from './remote-rules-background.js';
 import { REMOTE_RULES_KEY, rulesChanged } from './remote-rules.js';
 import { imageBadge } from './badge.js';
@@ -138,7 +139,7 @@ export function registerAutomaticBadge() {
     if (keys.length === 1 && keys[0] === REMOTE_RULES_KEY && !rulesChanged(changes[REMOTE_RULES_KEY])) return;
     if (!keys.some(key => key === REMOTE_RULES_KEY || /^(filters:|xpath:|excluded-selectors:|ignored:|image-query:)/.test(key))) return;
     configurationVersion++;
-    const structural = keys.some(key => /^(xpath:|excluded-selectors:)/.test(key));
+    const structural = !changes[SYNC_IMPORT_KEY] && keys.some(key => /^(xpath:|excluded-selectors:)/.test(key));
     void chrome.tabs.query({}).then(tabs => {
       for (const tab of tabs) {
         const domain = siteDomain(tab.url);

@@ -104,3 +104,15 @@ npx --yes @fission-ai/openspec@1.14.3 archive <change-name>
 `remote-rules.js` 提供数据格式校验与合并，`remote-subscriptions.js` 管理本机 `remote-rules:v1` 缓存和调度。`remote-rules-background.js` 协调后台共享有效配置；图库经消息、徽标直接调用。`rules-host.js` 通过离屏单例承载选择器校验与 `rules-worker.js` 的有时限正则匹配，所有执行代码随扩展打包。设置动态列表位于 `remote-rules-settings.js`，格式见[规则文档](remote-rules.md)。
 
 `npm test` 包含规则与订阅单元测试；`python tests/remote_rules_browser_test.py` 使用独立临时配置及本地HTTP服务验证真实设置、离线、徽标、范围、线程、导航与下载更新。无需用户Chrome资料、真实Gist或额外运行时依赖。
+
+## 配置同步开发与验证
+
+同步范围、格式和容量见[配置同步](settings-sync.md)。`settings-sync-codec.js` 定义允许表、版本向量、摘要、分片及预算；`settings-sync.js` 为可注入存储的协调器，`settings-sync-background.js` 接入生命周期、消息及5分钟alarm，`settings-sync-ui.js` 为设置页差异与选择界面。
+
+`config-lock.js` 对所有配置写入提供共享Web锁。订阅必须先进入其修改队列、再取得配置锁；不得在配置锁内等待订阅队列或网络。完整导入由订阅管理器对账后一次写入，包括内部null继承墓碑与导入事件。图片库仅对有效范围变化采集，普通变化复用已有预览及徽标快照。
+
+```sh
+python tests/settings_sync_browser_test.py
+```
+
+专项浏览器测试支持 `CHROMIUM_PATH` 和 `SYNC_TEST=SBxx`，用两个临时配置及仅测试使用的复制桥验证原生存储、冲突、UI和配额。Google云端实际传输未由此证明，不要求个人账户或新增权限。现有七个浏览器脚本及67项单元用例保持原样回归。

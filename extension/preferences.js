@@ -1,3 +1,4 @@
+import { saveConfig, removeConfig } from './config-lock.js';
 import { t } from './i18n.js';
 import { DEFAULT_THRESHOLDS, THRESHOLD_KEYS, normalizeThreshold, ignoreStorageKey, siteDomain } from './metadata.js';
 
@@ -15,7 +16,7 @@ export async function loadViewFilters() {
   return normalizeViewFilters((await chrome.storage.local.get(VIEW_FILTERS_KEY))[VIEW_FILTERS_KEY]);
 }
 export function saveViewFilters(value) {
-  return chrome.storage.local.set({ [VIEW_FILTERS_KEY]: normalizeViewFilters(value) });
+  return saveConfig({ [VIEW_FILTERS_KEY]: normalizeViewFilters(value) });
 }
 
 let queryWrites = Promise.resolve();
@@ -30,7 +31,7 @@ export async function loadQuery(domain) {
 export function saveQuery(domain, value, explicitEmpty = false) {
   if (!domain) return Promise.resolve();
   const key = queryStorageKey(domain);
-  const operation = queryWrites.then(() => value || explicitEmpty ? chrome.storage.local.set({ [key]: value }) : chrome.storage.local.remove(key));
+  const operation = queryWrites.then(() => value || explicitEmpty ? saveConfig({ [key]: value }) : removeConfig(key));
   queryWrites = operation.catch(() => {});
   return operation;
 }
@@ -62,7 +63,7 @@ export function saveGlobalDimensions(values) {
       typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 100000)) {
     throw new Error(t('请输入 0 至 100000 的整数。'));
   }
-  return chrome.storage.local.set(Object.fromEntries(entries.map(([field, value]) => [GLOBAL_DIMENSION_KEYS[field], value])));
+  return saveConfig(Object.fromEntries(entries.map(([field, value]) => [GLOBAL_DIMENSION_KEYS[field], value])));
 }
 export async function loadThresholdState(domain) {
   const siteKeys = validDomain(domain) ? thresholdFields.map(field => thresholdStorageKey(domain, field)) : [];
@@ -84,10 +85,10 @@ export async function loadThresholds(domain) {
 export async function saveThresholds(domain, values) {
   const entries = Object.entries(values).map(([field, value]) =>
     [thresholdStorageKey(domain, field), normalizeThreshold(value, DEFAULT_THRESHOLDS[field])]);
-  if (entries.length) await chrome.storage.local.set(Object.fromEntries(entries));
+  if (entries.length) await saveConfig(Object.fromEntries(entries));
 }
 export async function resetThresholds(domain, fields = thresholdFields) {
-  await chrome.storage.local.remove(fields.map(field => thresholdStorageKey(domain, field)));
+  await removeConfig(fields.map(field => thresholdStorageKey(domain, field)));
 }
 
 export async function loadIgnored(domain) {

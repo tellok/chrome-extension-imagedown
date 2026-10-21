@@ -1,3 +1,6 @@
+import { withConfigLock } from './config-lock.js';
+import { registerSettingsSync } from './settings-sync-background.js';
+registerSettingsSync();
 import { registerRemoteRules } from './remote-rules-background.js';
 registerRemoteRules();
 import { t, initI18n, translateRendered } from './i18n.js';
@@ -66,14 +69,14 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     respond({ ok: false, error: t('无效的忽略规则') });
     return;
   }
-  const operation = mutations.then(async () => {
+  const operation = mutations.then(() => withConfigLock(async () => {
     const key = `ignored:v1:${domain}`;
     const previous = (await chrome.storage.local.get(key))[key];
     const hashes = new Set(Array.isArray(previous) ? previous : []);
     if (ignored) hashes.add(hash); else hashes.delete(hash);
     if (hashes.size) await chrome.storage.local.set({ [key]: [...hashes] });
     else await chrome.storage.local.remove(key);
-  });
+  }));
   mutations = operation.catch(() => {});
   operation.then(() => respond({ ok: true }), error => respond({ ok: false, error: error.message }));
   return true;

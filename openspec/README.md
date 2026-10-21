@@ -11,6 +11,7 @@
 | 下载位置、标题、格式与去重 | [image-downloads](specs/image-downloads/spec.md) |
 | 远程规则订阅与刷新 | [remote-rule-subscriptions](specs/remote-rule-subscriptions/spec.md) |
 | 工具栏自动计数 | [automatic-badge](specs/automatic-badge/spec.md) |
+| Chrome 配置同步与冲突处理 | [settings-sync](specs/settings-sync/spec.md) |
 | 设置、语言与主题 | [user-preferences](specs/user-preferences/spec.md) |
 | 平台、权限、隐私与运行边界 | [extension-platform](specs/extension-platform/spec.md) |
 

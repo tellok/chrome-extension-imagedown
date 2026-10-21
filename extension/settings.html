@@ -14,6 +14,13 @@
   <main>
     <h2>设置</h2>
     <p class="settings-intro">设置自动保存，并应用于所有网站。</p>
+    <section class="settings-group" aria-labelledby="sync-heading">
+      <h3 id="sync-heading">配置同步</h3>
+      <label class="setting-row" for="chrome-sync"><span><strong>在此机器同步配置</strong><span class="setting-description">默认开启。基础设置、网站规则、搜索词、忽略记录和订阅地址通过 Chrome 同步；下载目录授权、图片和规则缓存仅留本机。</span></span><input id="chrome-sync" type="checkbox" role="switch" disabled></label>
+      <p class="settings-note">跨设备需要相同扩展标识、同一 Chrome 账户并开启浏览器同步。写入同步存储不代表其他设备已收到。</p>
+      <div class="sync-tools"><span id="sync-status" role="status" aria-live="polite"></span><button id="sync-retry" type="button" disabled>重新检查</button></div>
+      <div id="sync-conflict" hidden><button id="sync-use-local" type="button">使用本机设置</button><div id="sync-candidates"></div><details id="sync-diff"><summary>查看差异</summary><div id="sync-differences"></div></details></div>
+    </section>
     <section class="settings-group" aria-labelledby="appearance-settings-heading">
       <h3 id="appearance-settings-heading">外观</h3>
       <label class="setting-row" for="theme">

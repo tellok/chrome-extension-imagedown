@@ -1,3 +1,4 @@
+import { withConfigLock } from './config-lock.js';
 import { REMOTE_RULES_KEY, RULE_LIMITS, parseSubscription, validateRuleDocument } from './remote-rules.js';
 export const RULES_ALARM = 'imagetaken-remote-rules';
 export const REFRESH_INTERVAL = 6 * 60 * 60 * 1000;
@@ -13,13 +14,13 @@ export function createSubscriptionManager({ storage, alarms, fetcher = fetch, va
     return structuredClone(saved);
   }
   function mutate(operation) {
-    const result = mutations.then(async () => {
+    const result = mutations.then(() => withConfigLock(async () => {
       const state = await read();
       const result = await operation(state);
       if (result === false) return state;
       await storage.set({ [REMOTE_RULES_KEY]: state });
       return state;
-    });
+    }));
     mutations = result.catch(() => {});
     return result;
   }
@@ -140,6 +141,21 @@ export function createSubscriptionManager({ storage, alarms, fetcher = fetch, va
     if ((await read()).revision !== state.revision) return resolve(url);
     return result;
   }
+  function applyConfiguration(urls, operation) {
+    const result = mutations.then(() => withConfigLock(async () => {
+      const state = await read();
+      const entries = urls.map(url => state.entries.find(entry => entry.url === url) || {
+        id: crypto.randomUUID(), ...parseSubscription(url), lastAttempt: null, lastSuccess: null, error: '',
+      });
+      const changed = canonical(entries.map(e => e.url)) !== canonical(state.entries.map(e => e.url));
+      const next = { revision: state.revision + (changed ? 1 : 0), entries };
+      await operation({ [REMOTE_RULES_KEY]: next });
+      matches.clear();
+    }));
+    mutations = result.catch(() => {});
+    return result;
+  }
+  async function afterConfiguration() { await schedule(); await refreshAll({ dueOnly: true }); }
   async function start() { await schedule(); await refreshAll({ dueOnly: true }); }
-  return { list, add, remove, refresh, refreshAll, resolve, start, schedule };
+  return { list, add, remove, refresh, refreshAll, resolve, start, schedule, applyConfiguration, afterConfiguration };
 }

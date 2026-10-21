@@ -1,3 +1,5 @@
+import { saveConfig } from './config-lock.js';
+import { bindSettingsSync } from './settings-sync-ui.js';
 import { bindRemoteSubscriptions } from './remote-rules-settings.js';
 import { GLOBAL_DIMENSION_KEYS, loadGlobalDimensions, saveGlobalDimensions } from './preferences.js';
 import { t } from './i18n.js';
@@ -10,6 +12,7 @@ try { await initI18n(); }
 catch (error) { status.textContent = t('无法读取设置：{0}', error.message); }
 bindDocument();
 bindRemoteSubscriptions();
+bindSettingsSync();
 const themeSelect = document.getElementById('theme');
 try { await themeReady; }
 catch (error) { status.textContent = t('无法读取设置：{0}', error.message); }
@@ -19,7 +22,7 @@ window.addEventListener('imagetaken-themechange', () => { themeSelect.value = th
 themeSelect.addEventListener('change', async () => {
   themeSelect.disabled = true;
   try {
-    await chrome.storage.local.set({ [THEME_KEY]: themeSelect.value });
+    await saveConfig({ [THEME_KEY]: themeSelect.value });
     status.textContent = t('已保存');
   } catch (error) {
     themeSelect.value = themePreference();
@@ -37,7 +40,7 @@ window.addEventListener('imagetaken-languagechange', event => {
 languageSelect.addEventListener('change', async () => {
   languageSelect.disabled = true;
   try {
-    await chrome.storage.local.set({ [LANGUAGE_KEY]: languageSelect.value });
+    await saveConfig({ [LANGUAGE_KEY]: languageSelect.value });
     status.textContent = t('已保存');
   } catch (error) {
     languageSelect.value = languagePreference();
@@ -58,7 +61,7 @@ await Promise.all(controls.map(async ({ toggle, key, load }) => {
     const value = toggle.checked;
     toggle.disabled = true;
     try {
-      await chrome.storage.local.set({ [key]: value });
+      await saveConfig({ [key]: value });
       status.textContent = t('已保存');
     } catch (error) {
       toggle.checked = !value;
