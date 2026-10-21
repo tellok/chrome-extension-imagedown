@@ -10,7 +10,7 @@ export function imageBadge(items, total, scanning = false) {
 }
 
 export function createBadgeReporter(snapshot) {
-  let timer, last = '', queue = Promise.resolve();
+  let timer, port, last = '';
   return function reportBadge() {
     if (timer) return;
     timer = setTimeout(() => {
@@ -21,16 +21,13 @@ export function createBadgeReporter(snapshot) {
       const fingerprint = JSON.stringify({ tabIds, ...badge });
       if (fingerprint === last) return;
       last = fingerprint;
-      queue = queue.then(async () => {
-        await Promise.allSettled(tabIds.map(async tabId => {
-          await Promise.all([
-            chrome.action.setBadgeBackgroundColor({ tabId, color: '#DC2626' }),
-            chrome.action.setBadgeTextColor({ tabId, color: '#FFFFFF' }),
-            chrome.action.setBadgeText({ tabId, text: badge.text }),
-            chrome.action.setTitle({ tabId, title: badge.title }),
-          ]);
-        }));
-      });
+      try {
+        if (!port) {
+          port = chrome.runtime.connect({ name: 'panel-image-badge' });
+          port.onDisconnect.addListener(() => { port = null; last = ''; reportBadge(); });
+        }
+        port.postMessage({ tabIds, ...badge });
+      } catch { port = null; last = ''; }
     }, 80);
   };
 }

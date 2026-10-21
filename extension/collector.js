@@ -1,4 +1,4 @@
-// Runs only on demand, in the extension's isolated world, once in each frame.
+// Runs in response to panel scans or passive badge updates, in the extension's isolated world, once in each frame.
 (() => {
   if (globalThis.__imageTaken) return;
   const MAX_BYTES = 20 * 1024 * 1024;
@@ -55,7 +55,7 @@
     return data;
   }
 
-  function scan(xpath = '', excludedSelectors = '') {
+  function scan(xpath = '', excludedSelectors = '', passive = false) {
     const selectors = excludedSelectors.split('\n').map(value => value.trim()).filter(Boolean);
     try { for (const selector of selectors) document.querySelector(selector); }
     catch { return { error: 'CSS 排除选择器无效：请检查每行的选择器语法' }; }
@@ -78,8 +78,9 @@
     // Collapse overlapping matches so nested SVG/Canvas nodes are collected once.
     roots = roots.filter((node, i) => !roots.some((parent, j) => j !== i && parent.contains(node)));
     const visited = new Set();
-    revision++;
-    records = new Map();
+    if (!passive) revision++;
+    const scanRecords = new Map();
+    if (!passive) records = scanRecords;
     const byURL = new Map();
     let previewBytes = 0;
     let snapshotBytes = 0;
@@ -114,7 +115,7 @@
         alt: (element?.getAttribute('alt') || '').slice(0, 200),
       };
       byURL.set(url, record);
-      records.set(id, record);
+      scanRecords.set(id, record);
       return record;
     };
     const walk = (root) => {
@@ -129,7 +130,7 @@
           const loaded = el.complete && el.naturalWidth > 0;
           let preview = '';
           let previewIssue = loaded ? 'budget' : 'not-loaded';
-          if (loaded && previewBytes < 6 * 1024 * 1024) {
+          if (!passive && loaded && previewBytes < 6 * 1024 * 1024) {
             try { preview = pixels(el, true); previewBytes += preview.length; previewIssue = ''; }
             catch (error) { previewIssue = error.name === 'SecurityError' ? 'cross-origin' : 'unavailable'; }
           }
@@ -148,7 +149,7 @@
         }
         if (el instanceof HTMLCanvasElement && el.width && el.height) {
           let snapshot = '', preview = '';
-          try {
+          if (!passive) try {
             const data = pixels(el);
             if (snapshotBytes + data.length <= 32 * 1024 * 1024) {
               snapshot = data; snapshotBytes += data.length;
@@ -157,7 +158,7 @@
           } catch { /* Still show unreadable canvases. */ }
           // Fragment gives each canvas its own stable URL within this scan.
           add(`${location.href.split('#')[0]}#__imagetaken_canvas_${byURL.size}`, 'canvas', el,
-            { loaded: true, width: el.width, height: el.height, kind: 'canvas', snapshot, preview });
+            { loaded: !passive, width: el.width, height: el.height, kind: 'canvas', snapshot, preview });
         }
         if (el instanceof SVGSVGElement && !el.parentElement?.closest('svg')) {
           const clone = el.cloneNode(true);
@@ -197,11 +198,13 @@
     }
     // The side panel and expanded tab may be open at once. A new scan must not
     // immediately invalidate another view's page-only Blob/Canvas references.
-    history.push(records);
-    if (history.length > 3) history.shift();
+    if (!passive) {
+      history.push(records);
+      if (history.length > 3) history.shift();
+    }
     return {
       title: document.title, url: location.href, truncated, matchedRoots,
-      items: [...records.values()].map(({ element, snapshot, ...item }) => item),
+      items: [...scanRecords.values()].map(({ element, snapshot, ...item }) => item),
     };
   }
 

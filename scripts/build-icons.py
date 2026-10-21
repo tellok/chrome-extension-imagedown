@@ -1,6 +1,6 @@
 """Export the selected logo to square extension assets; requires Pillow."""
 from pathlib import Path
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
 source = Image.open(ROOT / 'docs/logo-source.png').convert('RGBA')
@@ -9,14 +9,22 @@ source = Image.open(ROOT / 'docs/logo-source.png').convert('RGBA')
 bounds = source.getchannel('A').point(lambda value: 255 if value >= 10 else 0).getbbox()
 if not bounds:
     raise ValueError('Logo source has no visible artwork')
-left, top, right, bottom = bounds
-art = source.crop((max(0, left - 2), max(0, top - 2), min(source.width, right + 2), min(source.height, bottom + 2)))
-art.thumbnail((960, 960), Image.Resampling.LANCZOS)
-logo = Image.new('RGBA', (1024, 1024))
-logo.alpha_composite(art, ((1024 - art.width) // 2, (1024 - art.height) // 2))
+art = source.crop(bounds)
+
+
+def icon_at(size):
+    # Chrome supplies the toolbar spacing. Fill the available image bounds,
+    # allowing upscaling rather than adding another layer of transparent padding.
+    scaled = ImageOps.contain(art, (size, size), Image.Resampling.LANCZOS)
+    icon = Image.new('RGBA', (size, size))
+    icon.alpha_composite(scaled, ((size - scaled.width) // 2, (size - scaled.height) // 2))
+    return icon
+
+
+logo = icon_at(1024)
 logo.save(ROOT / 'extension/assets/imagetaken-logo.png')
 for size in (16, 32, 48, 128):
-    logo.resize((size, size), Image.Resampling.LANCZOS).save(ROOT / f'extension/icons/{size}.png')
+    icon_at(size).save(ROOT / f'extension/icons/{size}.png')
 
 preview = Image.new('RGB', (800, 440))
 draw = ImageDraw.Draw(preview)

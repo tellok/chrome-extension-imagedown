@@ -12,18 +12,12 @@ globalThis.addEventListener('imagetaken-languagechange', event => {
 });
 import { downloadTargetKey } from './browser-downloads.js';
 import { registerDebuggerReader } from './debugger-reader.js';
+import { registerAutomaticBadge } from './automatic-badge.js';
+registerAutomaticBadge();
 registerDebuggerReader();
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
 chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' }).catch(console.error);
-// A retained badge describes the last panel scan, never the next document.
-chrome.tabs.onUpdated.addListener((tabId, change) => {
-  if (change.status !== 'loading') return;
-  void Promise.allSettled([
-    chrome.action.setBadgeText({ tabId, text: '' }),
-    chrome.action.setTitle({ tabId, title: t('打开 ImageTaken') }),
-  ]);
-});
 const downloadTargets = new Map();
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (message?.type !== 'start-browser-download' || sender.id !== chrome.runtime.id || !sender.url?.startsWith(chrome.runtime.getURL('panel.html'))) return;

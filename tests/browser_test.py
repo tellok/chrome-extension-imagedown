@@ -316,18 +316,19 @@ def test_preview_retries(context, worker, extension_id, origin, output):
     panel.evaluate("chrome.storage.local.set({'settings:ready-first':false})")
     assert not errors, errors
     panel.close()
-    # Closing a panel retains its tab's last successful count. A different tab
-    # has independent state, and navigation clears the retained result.
+    # Closed views release badge ownership; other tabs and new documents
+    # count loaded page images without opening another panel.
     assert worker.evaluate('id => chrome.action.getBadgeText({tabId:id})', tab_id) == '3'
     separate = context.new_page()
     separate.goto(origin + '/frame?badge')
     separate_id = worker.evaluate("async () => (await chrome.tabs.query({})).find(tab => tab.url?.endsWith('/frame?badge')).id")
-    assert worker.evaluate('id => chrome.action.getBadgeText({tabId:id})', separate_id) == ''
-    assert worker.evaluate('id => chrome.action.getBadgeText({tabId:id})', tab_id) == '3'
+    assert worker.evaluate('''async id => { for(let i=0;i<100;i++){if(await chrome.action.getBadgeText({tabId:id})==='1') return true;await new Promise(r=>setTimeout(r,100));} return false; }''', separate_id)
+    # Source DOM images are still broken; only the closed panel retried them.
+    assert worker.evaluate('''async id => { for(let i=0;i<100;i++){if(await chrome.action.getBadgeText({tabId:id})==='0') return true;await new Promise(r=>setTimeout(r,100));} return false; }''', tab_id)
     separate.close()
     source.goto(origin + '/frame')
     source.wait_for_load_state('networkidle')
-    assert worker.evaluate('id => chrome.action.getBadgeText({tabId:id})', tab_id) == ''
+    assert worker.evaluate('''async id => { for(let i=0;i<100;i++){if(await chrome.action.getBadgeText({tabId:id})==='1') return true;await new Promise(r=>setTimeout(r,100));} return false; }''', tab_id)
     source.close()
 
 
