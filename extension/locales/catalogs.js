@@ -269,7 +269,14 @@ export const catalogs = {
     "无法确定当前网站，未保存筛选设置。": "Cannot identify the current site; filters were not saved.",
     "全局默认({0})": "Global default({0})",
     "还原宽度全局默认": "Restore global default width",
-    "还原高度全局默认": "Restore global default height"
+    "还原高度全局默认": "Restore global default height",
+    "下载": "Downloads",
+    "同时下载图片清单": "Download an image manifest",
+    "在图片目录中保存一份文本，记录实际文件名、来源地址、图片原标题和采集时间。清单包含来源信息。": "Save a text file in the image folder with actual filenames, source URLs, original image titles and collection times. The manifest contains source information.",
+    "默认关闭。开启后每批下载生成一份清单。": "Off by default. When enabled, each download batch creates one manifest.",
+    "正在保存图片清单…": "Saving image manifest…",
+    "图片清单保存失败：{0}。已保存的图片保留。": "Could not save the image manifest: {0}. Saved images are kept.",
+    "图片清单已保存。": "Image manifest saved."
   },
   "ja": {
     " · 失败 {0}": " · 失敗 {0}",
@@ -540,7 +547,14 @@ export const catalogs = {
     "无法确定当前网站，未保存筛选设置。": "現在のサイトを特定できないため、フィルターは保存されませんでした。",
     "全局默认({0})": "全体の既定値({0})",
     "还原宽度全局默认": "幅を全体の既定値に戻す",
-    "还原高度全局默认": "高さを全体の既定値に戻す"
+    "还原高度全局默认": "高さを全体の既定値に戻す",
+    "下载": "ダウンロード",
+    "同时下载图片清单": "画像一覧もダウンロード",
+    "在图片目录中保存一份文本，记录实际文件名、来源地址、图片原标题和采集时间。清单包含来源信息。": "画像フォルダーに、実際のファイル名、参照元 URL、画像の元タイトル、収集日時を記録したテキストを保存します。参照元の情報が含まれます。",
+    "默认关闭。开启后每批下载生成一份清单。": "既定ではオフです。有効にすると、ダウンロードごとに一覧を1つ作成します。",
+    "正在保存图片清单…": "画像一覧を保存中…",
+    "图片清单保存失败：{0}。已保存的图片保留。": "画像一覧を保存できませんでした：{0}。保存済みの画像は保持されます。",
+    "图片清单已保存。": "画像一覧を保存しました。"
   },
   "de": {
     " · 失败 {0}": " · Fehlgeschlagen {0}",
@@ -811,7 +825,14 @@ export const catalogs = {
     "无法确定当前网站，未保存筛选设置。": "Die aktuelle Website ist unbekannt; Filter wurden nicht gespeichert.",
     "全局默认({0})": "Globaler Standard({0})",
     "还原宽度全局默认": "Globale Standardbreite wiederherstellen",
-    "还原高度全局默认": "Globale Standardhöhe wiederherstellen"
+    "还原高度全局默认": "Globale Standardhöhe wiederherstellen",
+    "下载": "Downloads",
+    "同时下载图片清单": "Bildverzeichnis mit herunterladen",
+    "在图片目录中保存一份文本，记录实际文件名、来源地址、图片原标题和采集时间。清单包含来源信息。": "Speichert eine Textdatei im Bildordner mit tatsächlichen Dateinamen, Quelladressen, ursprünglichen Bildtiteln und Erfassungszeiten. Sie enthält Herkunftsinformationen.",
+    "默认关闭。开启后每批下载生成一份清单。": "Standardmäßig deaktiviert. Jeder Download-Vorgang erstellt bei Aktivierung ein Verzeichnis.",
+    "正在保存图片清单…": "Bildverzeichnis wird gespeichert…",
+    "图片清单保存失败：{0}。已保存的图片保留。": "Bildverzeichnis konnte nicht gespeichert werden: {0}. Gespeicherte Bilder bleiben erhalten.",
+    "图片清单已保存。": "Bildverzeichnis gespeichert."
   },
   "ko": {
     " · 失败 {0}": " · 실패 {0}",
@@ -1082,7 +1103,14 @@ export const catalogs = {
     "无法确定当前网站，未保存筛选设置。": "현재 사이트를 확인할 수 없어 필터를 저장하지 않았습니다.",
     "全局默认({0})": "전체 기본값({0})",
     "还原宽度全局默认": "너비를 전체 기본값으로 복원",
-    "还原高度全局默认": "높이를 전체 기본값으로 복원"
+    "还原高度全局默认": "높이를 전체 기본값으로 복원",
+    "下载": "다운로드",
+    "同时下载图片清单": "이미지 목록 함께 다운로드",
+    "在图片目录中保存一份文本，记录实际文件名、来源地址、图片原标题和采集时间。清单包含来源信息。": "이미지 폴더에 실제 파일명, 출처 주소, 이미지 원제목과 수집 시각을 기록한 텍스트 파일을 저장합니다. 출처 정보가 포함됩니다.",
+    "默认关闭。开启后每批下载生成一份清单。": "기본적으로 꺼져 있습니다. 켜면 다운로드 작업마다 목록 하나를 생성합니다.",
+    "正在保存图片清单…": "이미지 목록 저장 중…",
+    "图片清单保存失败：{0}。已保存的图片保留。": "이미지 목록을 저장하지 못했습니다: {0}. 저장한 이미지는 유지됩니다.",
+    "图片清单已保存。": "이미지 목록을 저장했습니다."
   },
   "fr": {
     " · 失败 {0}": " · Échecs {0}",
@@ -1353,7 +1381,14 @@ export const catalogs = {
     "无法确定当前网站，未保存筛选设置。": "Site actuel introuvable ; les filtres n’ont pas été enregistrés.",
     "全局默认({0})": "Valeur globale({0})",
     "还原宽度全局默认": "Rétablir la largeur globale par défaut",
-    "还原高度全局默认": "Rétablir la hauteur globale par défaut"
+    "还原高度全局默认": "Rétablir la hauteur globale par défaut",
+    "下载": "Téléchargements",
+    "同时下载图片清单": "Télécharger aussi la liste des images",
+    "在图片目录中保存一份文本，记录实际文件名、来源地址、图片原标题和采集时间。清单包含来源信息。": "Enregistre un fichier texte dans le dossier des images avec les noms réels, les adresses sources, les titres originaux et les dates de collecte. Il contient des informations de provenance.",
+    "默认关闭。开启后每批下载生成一份清单。": "Désactivé par défaut. Une liste est créée pour chaque lot lorsque cette option est activée.",
+    "正在保存图片清单…": "Enregistrement de la liste des images…",
+    "图片清单保存失败：{0}。已保存的图片保留。": "Impossible d’enregistrer la liste des images : {0}. Les images enregistrées sont conservées.",
+    "图片清单已保存。": "Liste des images enregistrée."
   },
   "zh-CN": {
     " · 失败 {0}": " · 失败 {0}",
@@ -1624,7 +1659,14 @@ export const catalogs = {
     "无法确定当前网站，未保存筛选设置。": "无法确定当前网站，未保存筛选设置。",
     "全局默认({0})": "全局默认({0})",
     "还原宽度全局默认": "还原宽度全局默认",
-    "还原高度全局默认": "还原高度全局默认"
+    "还原高度全局默认": "还原高度全局默认",
+    "下载": "下载",
+    "同时下载图片清单": "同时下载图片清单",
+    "在图片目录中保存一份文本，记录实际文件名、来源地址、图片原标题和采集时间。清单包含来源信息。": "在图片目录中保存一份文本，记录实际文件名、来源地址、图片原标题和采集时间。清单包含来源信息。",
+    "默认关闭。开启后每批下载生成一份清单。": "默认关闭。开启后每批下载生成一份清单。",
+    "正在保存图片清单…": "正在保存图片清单…",
+    "图片清单保存失败：{0}。已保存的图片保留。": "图片清单保存失败：{0}。已保存的图片保留。",
+    "图片清单已保存。": "图片清单已保存。"
   },
   "zh-TW": {
     " · 失败 {0}": " · 失敗 {0}",
@@ -1895,6 +1937,13 @@ export const catalogs = {
     "无法确定当前网站，未保存筛选设置。": "無法確定目前網站，未儲存篩選設定。",
     "全局默认({0})": "全域預設({0})",
     "还原宽度全局默认": "還原寬度全域預設",
-    "还原高度全局默认": "還原高度全域預設"
+    "还原高度全局默认": "還原高度全域預設",
+    "下载": "下載",
+    "同时下载图片清单": "同時下載圖片清單",
+    "在图片目录中保存一份文本，记录实际文件名、来源地址、图片原标题和采集时间。清单包含来源信息。": "在圖片目錄中儲存一份文字，記錄實際檔案名稱、來源網址、圖片原標題和擷取時間。清單包含來源資訊。",
+    "默认关闭。开启后每批下载生成一份清单。": "預設關閉。開啟後每批下載產生一份清單。",
+    "正在保存图片清单…": "正在儲存圖片清單…",
+    "图片清单保存失败：{0}。已保存的图片保留。": "圖片清單儲存失敗：{0}。已儲存的圖片會保留。",
+    "图片清单已保存。": "圖片清單已儲存。"
   }
 };

@@ -62,6 +62,14 @@
       </label>
       <p class="settings-note">默认开启。预览加载或重试成功时会自动调整顺序。</p>
     </section>
+    <section class="settings-group" aria-labelledby="download-settings-heading">
+      <h3 id="download-settings-heading">下载</h3>
+      <label class="setting-row" for="download-manifest">
+        <span><strong>同时下载图片清单</strong><span id="manifest-help" class="setting-description">在图片目录中保存一份文本，记录实际文件名、来源地址、图片原标题和采集时间。清单包含来源信息。</span></span>
+        <input id="download-manifest" type="checkbox" role="switch" aria-describedby="manifest-help" disabled>
+      </label>
+      <p class="settings-note">默认关闭。开启后每批下载生成一份清单。</p>
+    </section>
     <p id="settings-status" role="status" aria-live="polite"></p>
   </main>
   <script type="module" src="settings-page.js"></script>

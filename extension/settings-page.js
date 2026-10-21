@@ -1,7 +1,7 @@
 import { GLOBAL_DIMENSION_KEYS, loadGlobalDimensions, saveGlobalDimensions } from './preferences.js';
 import { t } from './i18n.js';
 import { initI18n, bindDocument, localizeDocument, LANGUAGE_KEY, languagePreference, translateRendered } from './i18n.js';
-import { TITLE_CLEANUP_KEY, loadTitleCleanup, READY_FIRST_KEY, loadReadyFirst } from './settings.js';
+import { TITLE_CLEANUP_KEY, loadTitleCleanup, READY_FIRST_KEY, loadReadyFirst, DOWNLOAD_MANIFEST_KEY, loadDownloadManifest } from './settings.js';
 import { THEME_KEY, themeReady, themePreference } from './theme.js';
 
 const status = document.getElementById('settings-status');
@@ -45,6 +45,7 @@ languageSelect.addEventListener('change', async () => {
 const controls = [
   { toggle: document.getElementById('auto-clean-title'), key: TITLE_CLEANUP_KEY, load: loadTitleCleanup },
   { toggle: document.getElementById('ready-first'), key: READY_FIRST_KEY, load: loadReadyFirst },
+  { toggle: document.getElementById('download-manifest'), key: DOWNLOAD_MANIFEST_KEY, load: loadDownloadManifest },
 ];
 await Promise.all(controls.map(async ({ toggle, key, load }) => {
   try {

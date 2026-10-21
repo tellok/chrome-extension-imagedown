@@ -19,6 +19,7 @@ python3 -m venv .venv
 .venv/bin/pip install -r tests/requirements.txt
 .venv/bin/python -m playwright install chromium
 .venv/bin/python tests/browser_test.py
+.venv/bin/python tests/manifest_browser_test.py
 .venv/bin/python tests/debugger_test.py
 .venv/bin/python tests/automatic_badge_test.py
 .venv/bin/python tests/language_test.py
@@ -83,3 +84,17 @@ npx --yes @fission-ai/openspec@1.14.3 archive <change-name>
 图库宽高的空 value 表示继承显示，通过动态 placeholder 提示全局默认；筛选读取独立有效值，不将空串转换为零。配置来源与有效数值来自同一次存储读取。单项还原只删除对应网站字段，原三项恢复入口保留。图库宽高编辑接受 0..100000 的纯数字整数，空白仅为草稿，失焦恢复配置；最低体积仍允许小数 KiB。
 
 图库宽高还原按钮位于输入边框内部右侧，采用定位布局而不占用外部列宽；单位与按钮保留独立空间。相同网格跨度的宽、高、体积和格式控件以实际边框宽度对齐，窄屏独占整行的来源下拉仍按自身跨度布局。
+
+## 图片来源文本清单
+
+`settings:download-manifest` 为本机共享布尔设置，仅 `true` 开启，默认关闭。设置“下载”分类可切换；面板固定每批的开关、标题、目录和采集元数据，切换只影响下一批。初始设置读取失败可见，配置未知时禁用下载，可重新扫描或重开面板恢复读取。
+
+`collector.js` 在所属文档扫描时保存 `sourcePageUrl`、`originalTitle`、`collectedAt`、`sourceReference`。原标题取非空 title、alt 或内嵌 SVG title，缺失不以页面标题替代；采集时间为 UTC ISO 8601 字符串。同 URL 合并保留首次发现的完整溯源记录与全部读取入口，iframe 与资源记录保留所属文档地址。重新扫描生成新采集记录；下载不重新读取 DOM 补信息。
+
+`download-manifest.js` 负责批次快照、UTF-8 文本序列化及两类目录保存。字段标签使用稳定英文，值保留原文、转义换行和控制字符，缺失字段显示 `Not provided`。内嵌 SVG、Data URL、Blob 与 Canvas 明确显示 `No valid remote URL`，保留来源类型/元素引用；Blob 原引用不被当成远程地址，完整 Base64/XML 载荷不复制到文本。HTTP(S) SVG 仍有真实远程地址。
+
+清单采用实际完成结果中的 `savedName` 或 `actualPath` 文件名，记录转换和随机后缀后的名称，按输入顺序列出新保存/内容复用项目。失败及目录异常放入单独失败区，不冒充已归档图片。每批一份 `<安全标题>.txt`，已存在的同名文本使用随机后缀保留；批次标识区分图片全部去重复用的重复下载。清单不计入图片成功/跳过/失败数量。
+
+图片全部失败但目标目录准备成功时仍输出清单；目录准备失败不输出、不更换位置。清单保存失败单独提示并保留图片。两类保存继续沿用原有目录授权、实际路径核验及默认目录去重的可验证范围，无额外权限、后端或来源信息上传。
+
+`manifest_browser_test.py` 独立运行20项获批测试中的10项浏览器验收，使用临时配置、本地 HTTP 服务与真实沙盒文件句柄，支持 `CHROMIUM_PATH`；真实系统目录选择器及权限弹窗不由自动化替身证明。其余10项为 Node 单元测试，随 `npm test` 运行。

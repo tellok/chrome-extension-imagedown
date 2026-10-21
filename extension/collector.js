@@ -86,6 +86,7 @@
     let snapshotBytes = 0;
     let urlBytes = 0;
     let truncated = false;
+    const collectedAt = new Date().toISOString();
     const add = (value, source, element, extra = {}) => {
       const url = absolute(value);
       if (!url) return;
@@ -113,6 +114,11 @@
         kind: extra.kind || '', snapshot: extra.snapshot || '',
         position: rect ? Math.round(rect.top + scrollY) : Number.MAX_SAFE_INTEGER,
         alt: (element?.getAttribute('alt') || '').slice(0, 200),
+        sourcePageUrl: location.href,
+        originalTitle: [element?.getAttribute('title'), element?.getAttribute('alt'),
+          element instanceof SVGSVGElement ? element.querySelector('title')?.textContent : ''].find(value => value?.trim()) || '',
+        collectedAt,
+        sourceReference: element ? `${element.localName}${element.id ? `#${element.id}` : ''}` : source,
       };
       byURL.set(url, record);
       scanRecords.set(id, record);

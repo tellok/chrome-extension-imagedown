@@ -10,7 +10,8 @@ import { bindGallerySelection } from './selection.js';
 import { bindTitleEditor } from './title-editor.js';
 import { loadDirectory, saveDirectory, chooseDirectory, prepareDestination, directoryChanged } from './destination.js';
 import { createBadgeBinding } from './badge.js';
-import { TITLE_CLEANUP_KEY, loadTitleCleanup, READY_FIRST_KEY, loadReadyFirst } from './settings.js';
+import { TITLE_CLEANUP_KEY, loadTitleCleanup, READY_FIRST_KEY, loadReadyFirst, DOWNLOAD_MANIFEST_KEY, loadDownloadManifest } from './settings.js';
+import { createManifestBatch, saveManifest } from './download-manifest.js';
 
 const $ = id => document.getElementById(id);
 const pinnedId = Number(new URLSearchParams(location.search).get('tab')) || null;
@@ -26,6 +27,18 @@ const dimensionDrafts = { width: '', height: '' }, resettingDimensions = new Set
 const thresholdCards = new Map();
 let panelTabId = null, sourceLoading = false;
 let readyFirst = false, previewOrderTimer;
+let manifestEnabled = false, manifestReady = false, manifestError = '', manifestRevision = 0;
+async function reloadManifestPreference() {
+  const revision = ++manifestRevision;
+  try {
+    const enabled = await loadDownloadManifest();
+    if (revision !== manifestRevision) return;
+    manifestEnabled = enabled; manifestReady = true; manifestError = '';
+  } catch (error) {
+    if (revision !== manifestRevision) return;
+    manifestReady = false; manifestError = t('无法读取设置：{0}', error.message);
+  }
+}
 const reportBadge = createBadgeBinding(() => ({
   sourceTabId: state.tab?.id, panelTabId,
 }));
@@ -211,8 +224,9 @@ async function toggleIgnored(item) {
     applyIgnored(); render();
   } catch (error) { notice(t(`忽略规则保存失败：{0}`, error.message), true); }
 }
-function notice(message, error = false) {
+function notice(message, error = false, suffix = '') {
   $('notice').textContent = message;
+  if (suffix) $('notice').append(' ', suffix);
   $('notice').hidden = !message;
   $('notice').classList.toggle('error', error);
 }
@@ -234,7 +248,7 @@ function selectionUI() {
   const hiddenSelected = state.selected.size - selectedShown;
   $('selection-count').textContent = t(`已选择 {0} 张{1}`, state.selected.size, hiddenSelected ? t(`（含 {0} 张被筛选隐藏）`, hiddenSelected) : '');
   $('selection-count').hidden = state.selected.size === 0;
-  $('download').disabled = state.busy || state.scanning || previewWork || locationBusy || !directoryReady || !state.selected.size;
+  $('download').disabled = state.busy || state.scanning || previewWork || locationBusy || !directoryReady || !manifestReady || !state.selected.size;
   $('refresh').disabled = state.busy || state.scanning;
   $('format').disabled = state.busy || previewWork;
   $('expand').disabled = !state.tab || state.busy;
@@ -244,7 +258,7 @@ function selectionUI() {
   for (const input of $('gallery').querySelectorAll('input,button')) input.disabled = state.busy;
   for (const card of $('gallery').children) card.querySelector('input[type=checkbox]').disabled = state.busy || state.scanning || card.dataset.previewFailed === 'true';
   for (const button of $('gallery').querySelectorAll('.ignore-image[data-unavailable]')) button.disabled = true;
-  for (const button of $('gallery').querySelectorAll('.single-download')) button.disabled = state.busy || previewWork || locationBusy || !directoryReady;
+  for (const button of $('gallery').querySelectorAll('.single-download')) button.disabled = state.busy || previewWork || locationBusy || !directoryReady || !manifestReady;
   for (const button of $('gallery').querySelectorAll('.retry-preview')) button.disabled = state.busy || state.scanning || !!state.retryBatch || button.dataset.pending === 'true';
   for (const id of [...Object.values(thresholdInputs), 'defaults', 'reset']) $(id).disabled = state.scanning || !state.domain || !thresholdsReady;
   for (const field of ['width', 'height']) $(`reset-min-${field}`).disabled = state.scanning || state.busy || !state.domain || !thresholdsReady || resettingDimensions.has(field) || !Object.hasOwn(thresholdState.overrides, field);
@@ -383,6 +397,7 @@ async function refresh(tab = state.tab) {
   notice(''); render();
   try {
     if (!/^https?:/.test(tab.url || '')) throw new Error(t('请切换到普通 HTTP / HTTPS 网页。浏览器内部页、商店页及 PDF 阅读器可能不允许扩展访问。'));
+    if (!manifestReady) await reloadManifestPreference();
     await thresholdWrites;
     const [xpath, exclusions, query, thresholds] = await Promise.all([loadXPath(domain), loadExclusions(domain), loadQuery(domain), loadThresholdState(domain)]);
     if (generation !== state.generation) return;
@@ -410,17 +425,21 @@ async function refresh(tab = state.tab) {
     $('xpath-status').classList.add('error');
     notice(t(`扫描失败：{0}`, error.message), true);
   } finally {
-    if (generation === state.generation) { state.scanning = false; render(); if (thresholdsReady) void syncThresholds(); }
+    if (generation === state.generation) {
+      state.scanning = false; render(); if (thresholdsReady) void syncThresholds();
+      if (!manifestReady) notice(manifestError, true);
+    }
   }
 }
 
 async function runDownloads(items) {
-  if (state.busy || state.scanning || locationBusy || !directoryReady || state.retryBatch || state.items.some(item => item.previewPending) || !state.tab || !items.length) return;
+  if (state.busy || state.scanning || locationBusy || !directoryReady || !manifestReady || state.retryBatch || state.items.some(item => item.previewPending) || !state.tab || !items.length) return;
   titleEditor.commit();
   const tabId = state.tab.id;
   const format = $('format').value;
   const root = directory;
   const title = titleEditor.value;
+  const manifest = manifestEnabled ? createManifestBatch(items, title) : null;
   lastDownloadId = null;
   $('show-download').hidden = true;
   state.busy = true;
@@ -437,7 +456,7 @@ async function runDownloads(items) {
   // Two concurrent images bound memory and avoid flooding sites with requests.
   const worker = async () => {
     while (cursor < items.length) {
-      const item = items[cursor++];
+      const index = cursor++, item = items[index];
       state.results.set(item.key, { pending: true });
       render();
       try {
@@ -448,11 +467,15 @@ async function runDownloads(items) {
         if (result.sourceMime) item.mime = result.sourceMime;
         else if (result.mime && format === 'original') item.mime = result.mime;
         state.results.set(item.key, result);
+        if (manifest) manifest.entries[index].result = { ...result };
         if (result.skipped) skipped++; else done++;
       } catch (error) {
         if (Number.isInteger(error.downloadId)) lastDownloadId = error.downloadId;
         if (error.actualPath) misplaced++;
-        state.results.set(item.key, { error: error.message, misplaced: !!error.actualPath }); failed++;
+        const result = { error: error.message, misplaced: !!error.actualPath, actualPath: error.actualPath };
+        state.results.set(item.key, result);
+        if (manifest) manifest.entries[index].result = result;
+        failed++;
       }
       $('progress').textContent = t(`已处理 {0} / {1} · 新保存 {2}{3}{4} · 下载期间请保持此面板打开`, done + skipped + failed, items.length, done, skipped ? t(` · 跳过 {0}`, skipped) : '', failed ? t(` · 失败 {0}`, failed) : '');
       render();
@@ -461,12 +484,23 @@ async function runDownloads(items) {
   };
   $('progress').textContent = t(`正在下载 {0} 张图片，请保持面板打开…`, items.length);
   await Promise.all([worker(), worker()]);
+  let manifestFailure = '';
+  if (manifest) {
+    $('progress').textContent = t('正在保存图片清单…');
+    try {
+      const result = await saveManifest(manifest, destination);
+      if (Number.isInteger(result.downloadId)) lastDownloadId = result.downloadId;
+    } catch (error) { manifestFailure = error.message; }
+    $('progress').textContent = t(`已处理 {0} / {1} · 新保存 {2}{3}{4} · 下载期间请保持此面板打开`, done + skipped + failed, items.length, done, skipped ? t(` · 跳过 {0}`, skipped) : '', failed ? t(` · 失败 {0}`, failed) : '');
+    $('show-download').hidden = !Number.isInteger(lastDownloadId);
+  }
   state.busy = false;
   selectionUI();
   if (misplaced) notice(t(`{0} 张按配置保存，{1} 张已下载但目录被改写{2}。点击「打开下载位置」查看实际文件；可选择本地目录后重试。`, done, misplaced, failed > misplaced ? t(`，另有 {0} 张下载失败`, failed - misplaced) : ''), true);
   else if (failed) notice(t(`{0} 张下载完成，{1} 张失败。悬停失败标记可查看原因；可单独重试。`, done, failed), true);
   else if (skipped) notice(t(`{0} 张图片已下载到「{1}」文件夹，跳过 {2} 张内容相同的图片。`, done, destination.folder, skipped));
   else notice(t(`{0} 张图片已下载到「{1}」文件夹。`, done, destination.folder));
+  if (manifest) notice($('notice').textContent, !!manifestFailure || failed > 0, manifestFailure ? t('图片清单保存失败：{0}。已保存的图片保留。', manifestFailure) : t('图片清单已保存。'));
   if (state.pendingTab) { const tab = state.pendingTab; state.pendingTab = null; await refresh(tab); }
 }
 
@@ -590,6 +624,12 @@ $('defaults').addEventListener('click', async () => {
 });
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
+  if (changes[DOWNLOAD_MANIFEST_KEY]) {
+    manifestRevision++;
+    manifestEnabled = changes[DOWNLOAD_MANIFEST_KEY].newValue === true;
+    manifestReady = true; manifestError = ''; selectionUI();
+    if (Object.keys(changes).length === 1) return;
+  }
   if (changes[TITLE_CLEANUP_KEY]) titleEditor.setCleanup(changes[TITLE_CLEANUP_KEY].newValue === true);
   if (changes[VIEW_FILTERS_KEY]) applyViewFilters(changes[VIEW_FILTERS_KEY].newValue);
   if (changes[READY_FIRST_KEY]) readyFirst = changes[READY_FIRST_KEY].newValue !== false;
@@ -670,7 +710,9 @@ let localizationReady = false;
 window.addEventListener('imagetaken-languagechange', event => {
   if (!localizationReady) return;
   localizeDocument();
-  for (const id of ['notice', 'progress', 'retry-summary', 'xpath-status']) {
+  // Keep independently translated image and manifest messages as separate text nodes.
+  for (const node of $('notice').childNodes) node.textContent = translateRendered(node.textContent, event.previousLanguage);
+  for (const id of ['progress', 'retry-summary', 'xpath-status']) {
     $(id).textContent = translateRendered($(id).textContent, event.previousLanguage);
   }
   for (const item of state.items) if (item.previewError) item.previewError = translateRendered(item.previewError, event.previousLanguage);
@@ -685,6 +727,7 @@ try {
   bindDocument(); localizationReady = true;
   titleEditor.setCleanup(await loadTitleCleanup());
   readyFirst = await loadReadyFirst();
+  await reloadManifestPreference();
   if (pinnedId) panelTabId = (await chrome.tabs.getCurrent())?.id ?? null;
   await reloadDirectory();
   applyViewFilters(await loadViewFilters());

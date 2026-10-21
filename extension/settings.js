@@ -1,5 +1,10 @@
 export const TITLE_CLEANUP_KEY = 'settings:auto-clean-title';
 export const READY_FIRST_KEY = 'settings:ready-first';
+export const DOWNLOAD_MANIFEST_KEY = 'settings:download-manifest';
+
+export async function loadDownloadManifest() {
+  return (await chrome.storage.local.get(DOWNLOAD_MANIFEST_KEY))[DOWNLOAD_MANIFEST_KEY] === true;
+}
 
 export async function loadReadyFirst() {
   return (await chrome.storage.local.get(READY_FIRST_KEY))[READY_FIRST_KEY] !== false;
