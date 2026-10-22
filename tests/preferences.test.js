@@ -12,12 +12,12 @@ function storage(initial = {}) {
   } } };
   return data;
 }
-test('unconfigured sites use factory threshold defaults', async () => {
+test('Unconfigured sites use factory threshold defaults.', async () => {
   const data = storage();
   assert.deepEqual(await loadThresholds('one.test'), { width: 50, height: 50, minBytes: 2048 });
   assert.deepEqual(data, {});
 });
-test('threshold overrides are isolated by top-level hostname', async () => {
+test('Threshold overrides are isolated by top-level hostname.', async () => {
   const data = storage();
   await saveThresholds(siteDomain('https://ONE.test/a'), { width: 300, height: 120, minBytes: 5000 });
   assert.deepEqual(await loadThresholds(siteDomain('http://one.test:8080/b')), { width: 300, height: 120, minBytes: 5000 });
@@ -26,7 +26,7 @@ test('threshold overrides are isolated by top-level hostname', async () => {
   await assert.rejects(saveThresholds('', { width: 999 }));
   assert.equal(Object.keys(data).length, 3);
 });
-test('partial site overrides preserve explicit zero and inherit other fields', async () => {
+test('Partial site overrides preserve explicit zero and inherit other fields.', async () => {
   const data = storage({ 'filters:width': 100, 'filters:height': 80 });
   await saveThresholds('one.test', { width: 0 });
   assert.deepEqual(await loadThresholds('one.test'), { width: 0, height: 80, minBytes: 2048 });
@@ -35,13 +35,13 @@ test('partial site overrides preserve explicit zero and inherit other fields', a
   await saveThresholds('one.test', { minBytes: 0 });
   assert.deepEqual(await loadThresholds('one.test'), { width: 0, height: 20, minBytes: 0 });
 });
-test('concurrent threshold writes preserve separate fields and sites', async () => {
+test('Concurrent threshold writes preserve separate fields and sites.', async () => {
   storage();
   await Promise.all([saveThresholds('one.test', { width: 99 }), saveThresholds('one.test', { height: 88 }), saveThresholds('two.test', { width: 77 })]);
   assert.deepEqual(await loadThresholds('one.test'), { width: 99, height: 88, minBytes: 2048 });
   assert.deepEqual(await loadThresholds('two.test'), { width: 77, height: 50, minBytes: 2048 });
 });
-test('global dimensions affect only inherited site fields', async () => {
+test('Global dimensions affect only inherited site fields.', async () => {
   storage();
   await saveThresholds('one.test', { width: 0 });
   await saveGlobalDimensions({ width: 200, height: 100 });
@@ -49,7 +49,7 @@ test('global dimensions affect only inherited site fields', async () => {
   assert.deepEqual(await loadThresholds('one.test'), { width: 0, height: 100, minBytes: 2048 });
   assert.deepEqual(await loadThresholds('two.test'), { width: 200, height: 100, minBytes: 2048 });
 });
-test('clearing site thresholds stores zeros and reset restores inheritance', async () => {
+test('Clearing site thresholds stores zeros and reset restores inheritance.', async () => {
   const data = storage({ 'filters:width': 120, 'filters:height': 90, 'image-query:v1:one.test': 'photo', 'xpath:v1:one.test': '//img', 'ignored:v1:one.test': ['hash'] });
   await saveThresholds('two.test', { width: 700 });
   await saveThresholds('one.test', { width: 0, height: 0, minBytes: 0 });
@@ -63,7 +63,7 @@ test('clearing site thresholds stores zeros and reset restores inheritance', asy
   assert.equal(data['xpath:v1:one.test'], '//img');
   assert.deepEqual(data['ignored:v1:one.test'], ['hash']);
 });
-test('legacy global dimensions survive while legacy size is not inherited', async () => {
+test('Legacy global dimensions survive while legacy size is not inherited.', async () => {
   const data = storage({ 'filters:width': 320, 'filters:height': 180, 'filters:minBytes': 8192 });
   assert.deepEqual(await loadThresholds('one.test'), { width: 320, height: 180, minBytes: 2048 });
   assert.equal(data['filters:minBytes'], 8192);
@@ -72,7 +72,7 @@ test('legacy global dimensions survive while legacy size is not inherited', asyn
   data['filters:height'] = -1;
   assert.equal((await loadThresholds('one.test')).height, 50);
 });
-test('threshold storage failures propagate without persisting fallback values', async () => {
+test('Threshold storage failures propagate without persisting fallback values.', async () => {
   const data = storage({ 'filters:width': 300 });
   chrome.storage.local.get = async () => { throw new Error('read denied'); };
   await assert.rejects(loadThresholds('one.test'), /read denied/);
@@ -82,7 +82,7 @@ test('threshold storage failures propagate without persisting fallback values', 
   assert.deepEqual(data, { 'filters:width': 300 });
 });
 
-test('single dimension reset preserves the other site thresholds', async () => {
+test('Single dimension reset preserves the other site thresholds.', async () => {
   const data = storage({ 'filters:width': 50, 'filters:height': 80 });
   await saveThresholds('one.test', { width: 50, height: 0, minBytes: 4096 });
   await saveThresholds('two.test', { width: 700 });

@@ -18,17 +18,17 @@ function fixture() {
   return { ...manager, data, state, scheduled, advance: () => { tick += REFRESH_INTERVAL; } };
 }
 const url = 'https://rules.test/example.com.json';
-test('RS01 网络失败保留最后成功缓存', async () => {
+test('Network failures preserve the last successful subscription document.', async () => {
   const f = fixture(); const first = (await f.add(url)).entries[0];
   assert.equal(f.state.calls[0][1].credentials, 'omit'); assert.equal(f.state.calls[0][1].referrerPolicy, 'no-referrer');
   f.state.fetcher = async () => { throw new Error('offline'); }; f.advance(); await f.refresh(first.id);
   const last = (await f.list()).entries[0]; assert.deepEqual(last.document, first.document); assert.equal(last.lastSuccess, first.lastSuccess); assert.equal(last.error, 'offline'); assert.ok(last.lastAttempt > first.lastAttempt);
 });
-test('RS02 损坏JSON不替换有效文档', async () => {
+test('Malformed JSON cannot replace a valid cached rule document.', async () => {
   const f = fixture(); const first = (await f.add(url)).entries[0]; f.state.fetcher = async () => new Response('broken JSON'); await f.refresh(first.id);
   const last = (await f.list()).entries[0]; assert.deepEqual(last.document, document); assert.ok(last.error); assert.equal(last.lastSuccess, first.lastSuccess);
 });
-test('RS03 文件及缓存预算受限', async () => {
+test('Subscriptions enforce document, cache, rule, and entry limits.', async () => {
   const f = fixture(); const first = (await f.add(url)).entries[0];
   f.state.fetcher = async () => new Response(new Uint8Array(256 * 1024 + 1)); await f.refresh(first.id);
   assert.match((await f.list()).entries[0].error, /256 KiB/); assert.deepEqual((await f.list()).entries[0].document, document);
@@ -39,19 +39,19 @@ test('RS03 文件及缓存预算受限', async () => {
   await assert.rejects(f.add('https://rules.test/extra/example.com.json'), /limit/);
   assert.throws(() => validateRuleDocument({ version: 1, rules: Array(101).fill(document.rules[0]) }), /rules/);
 });
-test('RS04 获取超时可取消且不伪造成功', async () => {
+test('Timed out subscription requests are cancelled without reporting success.', async () => {
   const f = fixture(); const first = (await f.add(url)).entries[0];
   f.state.fetcher = (_url, { signal }) => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('aborted'))));
   const task = f.refresh(first.id); await new Promise(resolve => setImmediate(resolve));
   assert.equal(f.state.timers.at(-1).ms, 10000); f.state.timers.at(-1).callback(); await task;
   const last = (await f.list()).entries[0]; assert.match(last.error, /timeout/); assert.equal(last.lastSuccess, first.lastSuccess); assert.deepEqual(last.document, document);
 });
-test('RS05 删除进行中条目不能被响应复活', async () => {
+test('Late responses cannot restore a subscription removed during a request.', async () => {
   const f = fixture(); const first = (await f.add(url)).entries[0]; let finish;
   f.state.fetcher = () => new Promise(resolve => { finish = resolve; }); const task = f.refresh(first.id); await new Promise(resolve => setImmediate(resolve));
   await f.remove(first.id); finish(response(document)); await task; assert.equal((await f.list()).entries.length, 0);
 });
-test('RS06 重叠刷新合并并按源隔离失败', async () => {
+test('Overlapping subscription refreshes share work and isolate failures by source.', async () => {
   const f = fixture(); await f.add(url); await f.add('https://rules.test/b/example.com.json'); await f.add('https://rules.test/c/example.com.json');
   let active = 0, max = 0, calls = 0;
   f.state.fetcher = async source => { calls++; active++; max = Math.max(max, active); await new Promise(resolve => setImmediate(resolve)); active--; if (source.includes('/b/')) throw new Error('offline'); return response({ version: 1, rules: [] }); };
@@ -59,13 +59,13 @@ test('RS06 重叠刷新合并并按源隔离失败', async () => {
   await Promise.all([a, f.refreshAll()]); assert.equal(calls, 3); assert.ok(max <= 2);
   const entries = (await f.list()).entries; assert.equal(entries[0].document.rules.length, 0); assert.equal(entries[1].error, 'offline'); assert.equal(entries[2].document.rules.length, 0);
 });
-test('RS07 后台恢复调度并刷新到期项', async () => {
+test('Background startup restores refresh scheduling and updates overdue subscriptions.', async () => {
   const f = fixture(); await f.start(); assert.equal(f.scheduled.size, 0); assert.equal(f.state.calls.length, 0);
   const first = (await f.add(url)).entries[0]; assert.equal(f.scheduled.get(RULES_ALARM).periodInMinutes, 360);
   f.scheduled.clear(); f.advance(); await f.start(); assert.equal(f.state.calls.length, 2); assert.ok(f.scheduled.has(RULES_ALARM));
   await f.remove(first.id); assert.equal(f.scheduled.size, 0);
 });
-test('RS08 本机存储失败不报告保存成功', async () => {
+test('Local storage failures prevent subscription changes from reporting success.', async () => {
   const f = fixture(); const first = (await f.add(url)).entries[0]; const before = structuredClone(f.data[REMOTE_RULES_KEY]);
   f.state.readError = true; await assert.rejects(f.list(), /read denied/); await assert.rejects(f.add('https://rules.test/b/example.com.json'), /read denied/);
   f.state.readError = false; f.state.writeError = true; await assert.rejects(f.refresh(first.id), /write denied/); await assert.rejects(f.remove(first.id), /write denied/);

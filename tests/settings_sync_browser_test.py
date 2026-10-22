@@ -90,7 +90,7 @@ def publish(s, values):
     raise AssertionError(get(s).get(STATE))
 
 
-def test_SB01_device_switch(p, origin):
+def test_the_sync_switch_is_local_to_each_device_and_persists_across_browser_restarts(p, origin):
     with pair(p, origin) as (a, b):
         a.settings.locator('#chrome-sync').uncheck()
         wait_state(a, 'disabled'); a.restart(p); wait_state(a, 'disabled')
@@ -99,7 +99,7 @@ def test_SB01_device_switch(p, origin):
         assert all('settings:chrome-sync' not in str(value) for value in get(b, 'sync').values())
 
 
-def test_SB02_initial_native_storage(p, origin):
+def test_initial_sync_publishes_native_storage_data_without_exposing_routine_technical_status(p, origin):
     with session(p, origin) as s:
         wait_state(s, 'equal')
         assert any(k.endswith(':head') for k in get(s, 'sync')), {'local':get(s), 'cloud':get(s,'sync')}
@@ -120,7 +120,7 @@ def test_SB02_initial_native_storage(p, origin):
         assert get(s)['filters:width'] == 75
 
 
-def test_SB03_auto_publish_choose_and_badge(p, origin):
+def test_sync_publishes_local_changes_and_resolves_conflicts_while_updating_the_gallery_badge(p, origin):
     with pair(p, origin) as (a, b):
         b.page(); b.open_panel(); b.badge('3')
         a.settings.locator('#default-min-width').fill('200')
@@ -141,7 +141,7 @@ def test_SB03_auto_publish_choose_and_badge(p, origin):
         b.badge('2')
 
 
-def test_SB04_concurrent_candidates(p, origin):
+def test_concurrent_sync_versions_remain_available_for_explicit_conflict_resolution(p, origin):
     with pair(p, origin) as (a, b):
         put(a, {'settings:theme':'dark'}); put(b, {'settings:theme':'light'})
         a.settings.wait_for_timeout(11000)
@@ -153,7 +153,7 @@ def test_SB04_concurrent_candidates(p, origin):
         assert get(a)['settings:theme'] == 'dark'
 
 
-def test_SB05_diff_languages_and_layout(p, origin):
+def test_sync_differences_remain_readable_across_languages_themes_and_narrow_layouts(p, origin):
     with pair(p, origin) as (a, b):
         publish(b, {'settings:theme':'light'})
         publish(a, {'image-query:v1:one.test':'<script>alert(1)</script>'+'长'*1200})
@@ -184,7 +184,7 @@ def test_SB05_diff_languages_and_layout(p, origin):
         assert b.settings.locator('#sync-differences script').count() == 0
 
 
-def test_SB06_partial_out_of_order_corrupt(p, origin):
+def test_partial_reordered_or_corrupt_sync_chunks_never_apply_incomplete_settings(p, origin):
     with pair(p, origin) as (a, b):
         publish(a, {'settings:theme':'dark'})
         data = get(a, 'sync'); own = get(a)['config-sync:meta']['deviceId']
@@ -200,7 +200,7 @@ def test_SB06_partial_out_of_order_corrupt(p, origin):
         assert get(b).get('settings:theme') is None
 
 
-def test_SB07_disabled_no_participation(p, origin):
+def test_disabled_devices_neither_publish_nor_consume_synchronized_changes(p, origin):
     with pair(p, origin) as (a, b):
         rpc(b, 'enabled', enabled=False); before = get(b, 'sync')
         b.worker.evaluate("()=>{globalThis.syncCalls=[];for(const method of ['get','set','remove','getBytesInUse']){const original=chrome.storage.sync[method];chrome.storage.sync[method]=(...args)=>{syncCalls.push(method);return original.apply(chrome.storage.sync,args)}}}")
@@ -213,7 +213,7 @@ def test_SB07_disabled_no_participation(p, origin):
         b.restart(p); wait_state(b,'disabled'); assert get(b)['filters:width']==123
 
 
-def test_SB08_reenable_compares(p, origin):
+def test_reenabling_sync_compares_local_and_cloud_versions_before_applying_changes(p, origin):
     with pair(p, origin) as (a, b):
         rpc(b,'enabled',enabled=False)
         publish(a,{'filters:width':200}); bridge(a,b); put(b,{'filters:width':300})
@@ -222,7 +222,7 @@ def test_SB08_reenable_compares(p, origin):
         b.settings.reload(); wait_state(b,'conflict'); assert get(b)['filters:width']==300
 
 
-def test_SB09_atomic_presence_views_and_drafts(p, origin):
+def test_applying_a_sync_snapshot_preserves_value_presence_gallery_selections_and_unsaved_drafts(p, origin):
     with pair(p, origin) as (a, b):
         b.page(); panel=b.open_panel(); b.badge('3')
         put(b,{'filters:site:v1:127.0.0.1:height':5})
@@ -250,7 +250,7 @@ def test_SB09_atomic_presence_views_and_drafts(p, origin):
         panel.evaluate('window.unlockConfig()'); b.settings.wait_for_function("async()=>(await chrome.storage.local.get('filters:height'))['filters:height']===99")
 
 
-def test_SB10_subscriptions_cache_and_removed_request(p, origin):
+def test_synced_subscriptions_reuse_valid_caches_and_discard_responses_for_removed_sources(p, origin):
     with pair(p, origin) as (a, b):
         first=a.add({'width':100}); same=b.add({'height':70})
         second=a.add({'width':250},name='/other/127.0.0.1.json')
@@ -272,7 +272,7 @@ def test_SB10_subscriptions_cache_and_removed_request(p, origin):
         assert slow_entry['id'] not in [e['id'] for e in b.rpc('list')['entries']]
 
 
-def test_SB11_download_frozen_batch(p, origin):
+def test_active_download_batches_retain_their_settings_while_later_batches_use_synchronized_values(p, origin):
     with pair(p, origin) as (a,b):
         b.page(); panel=b.open_panel()
         panel.evaluate('''()=>{
@@ -293,7 +293,7 @@ def test_SB11_download_frozen_batch(p, origin):
         expect(b.settings.locator('#download-manifest')).to_be_checked()
 
 
-def test_SB12_native_quota_recovery(p, origin):
+def test_sync_quota_failures_preserve_local_settings_and_recover_after_the_payload_becomes_small_enough(p, origin):
     with session(p,origin) as s:
         wait_state(s,'equal'); old=get(s,'sync')
         # Native Chrome rejects an actual over-limit item independently of preflight.
@@ -309,7 +309,7 @@ def test_SB12_native_quota_recovery(p, origin):
         expect(s.settings.locator('#sync-feedback')).to_be_hidden()
 
 
-def test_SB13_sync_action_failure_feedback(p, origin):
+def test_failed_sync_actions_provide_concise_feedback_and_support_retrying_the_same_operation(p, origin):
     with pair(p, origin) as (a,b):
         publish(a, {'filters:width':200}); bridge(a,b); wait_state(b,'conflict')
         b.settings.evaluate("""()=>{
@@ -360,13 +360,31 @@ def test_SB13_sync_action_failure_feedback(p, origin):
         fresh.close()
 
 
+
+# Preserve all legacy substring selectors without displaying numbered names.
+TEST_CASES = {
+    'test_the_sync_switch_is_local_to_each_device_and_persists_across_browser_restarts': ('test_SB01_device_switch', 'The sync switch is local to each device and persists across browser restarts.'),
+    'test_initial_sync_publishes_native_storage_data_without_exposing_routine_technical_status': ('test_SB02_initial_native_storage', 'Initial sync publishes native storage data without exposing routine technical status.'),
+    'test_sync_publishes_local_changes_and_resolves_conflicts_while_updating_the_gallery_badge': ('test_SB03_auto_publish_choose_and_badge', 'Sync publishes local changes and resolves conflicts while updating the gallery badge.'),
+    'test_concurrent_sync_versions_remain_available_for_explicit_conflict_resolution': ('test_SB04_concurrent_candidates', 'Concurrent sync versions remain available for explicit conflict resolution.'),
+    'test_sync_differences_remain_readable_across_languages_themes_and_narrow_layouts': ('test_SB05_diff_languages_and_layout', 'Sync differences remain readable across languages, themes, and narrow layouts.'),
+    'test_partial_reordered_or_corrupt_sync_chunks_never_apply_incomplete_settings': ('test_SB06_partial_out_of_order_corrupt', 'Partial, reordered, or corrupt sync chunks never apply incomplete settings.'),
+    'test_disabled_devices_neither_publish_nor_consume_synchronized_changes': ('test_SB07_disabled_no_participation', 'Disabled devices neither publish nor consume synchronized changes.'),
+    'test_reenabling_sync_compares_local_and_cloud_versions_before_applying_changes': ('test_SB08_reenable_compares', 'Reenabling sync compares local and cloud versions before applying changes.'),
+    'test_applying_a_sync_snapshot_preserves_value_presence_gallery_selections_and_unsaved_drafts': ('test_SB09_atomic_presence_views_and_drafts', 'Applying a sync snapshot preserves value presence, gallery selections, and unsaved drafts.'),
+    'test_synced_subscriptions_reuse_valid_caches_and_discard_responses_for_removed_sources': ('test_SB10_subscriptions_cache_and_removed_request', 'Synced subscriptions reuse valid caches and discard responses for removed sources.'),
+    'test_active_download_batches_retain_their_settings_while_later_batches_use_synchronized_values': ('test_SB11_download_frozen_batch', 'Active download batches retain their settings while later batches use synchronized values.'),
+    'test_sync_quota_failures_preserve_local_settings_and_recover_after_the_payload_becomes_small_enough': ('test_SB12_native_quota_recovery', 'Sync quota failures preserve local settings and recover after the payload becomes small enough.'),
+    'test_failed_sync_actions_provide_concise_feedback_and_support_retrying_the_same_operation': ('test_SB13_sync_action_failure_feedback', 'Failed sync actions provide concise feedback and support retrying the same operation.'),
+}
+
 if __name__=='__main__':
     server=ThreadingHTTPServer(('127.0.0.1',0),Handler);Thread(target=server.serve_forever,daemon=True).start()
     origin=f'http://127.0.0.1:{server.server_port}'
     try:
         with sync_playwright() as p:
             for name,case in list(globals().items()):
-                if name.startswith('test_SB') and (not os.environ.get('SYNC_TEST') or os.environ['SYNC_TEST'] in name):
-                    RULES.clear();GATE.set();case(p,origin);print('PASS '+name,flush=True)
+                if name.startswith('test_') and (not os.environ.get('SYNC_TEST') or os.environ['SYNC_TEST'] in TEST_CASES[name][0]):
+                    RULES.clear();GATE.set();case(p,origin);print('PASS '+TEST_CASES[name][1],flush=True)
     finally:
         GATE.set();server.shutdown()

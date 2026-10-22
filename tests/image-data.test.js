@@ -10,7 +10,7 @@ async function withChrome(chrome, run) {
   try { await run(); } finally { globalThis.chrome = previous; }
 }
 
-test('retained original bytes remain local even when the source page is unavailable', async () => {
+test('Retained original bytes remain local even when the source page is unavailable.', async () => {
   const deny = () => { throw new Error('Source page must not be accessed'); };
   await withChrome({ runtime: { sendMessage: deny }, scripting: { executeScript: deny } }, async () => {
     const item = { url: 'https://example.invalid/original.gif', browserDataURL: 'https://example.invalid/original.gif', browserData: GIF, origins: [] };
@@ -24,7 +24,7 @@ test('retained original bytes remain local even when the source page is unavaila
   });
 });
 
-test('concurrent and subsequent reads reuse the original downloaded blob', async () => {
+test('Concurrent and subsequent reads reuse the original downloaded blob.', async () => {
   const nativeFetch = globalThis.fetch;
   let requests = 0;
   await withChrome({ runtime: { connect: () => {
@@ -49,7 +49,7 @@ test('concurrent and subsequent reads reuse the original downloaded blob', async
   });
 });
 
-test('a simultaneous static thumbnail read cannot replace the original GIF', async () => {
+test('A simultaneous static thumbnail read cannot replace the original GIF.', async () => {
   await withChrome({
     runtime: { sendMessage: async () => ({ items: [] }) },
     scripting: { executeScript: async ({ args }) => {

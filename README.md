@@ -2,20 +2,20 @@
 
 <img src="extension/assets/imagetaken-logo.png" alt="ImageTaken Logo" width="144">
 
-一个原生 JavaScript、零运行时依赖的 Chrome 图片下载扩展，支持侧边栏浏览、筛选、框选和批量保存图片。
+一个使用 TypeScript 开发、编译为原生 JavaScript 模块且零运行时依赖的 Chrome 图片下载扩展，支持侧边栏浏览、筛选、框选和批量保存图片。
 
 [GitHub 仓库](https://github.com/tellok/chrome-extension-imagetoken)
 
 ## 安装
 
-需要 Chrome 116 或更新版本，扩展无需构建。
+需要 Chrome 116 或更新版本。发布 ZIP 解压后可直接加载；克隆源码需使用 Node.js 22，先执行 `npm ci` 和 `npm run build`。
 
 1. 克隆仓库，或下载并解压扩展 ZIP。
 2. 打开 `chrome://extensions`，启用「开发者模式」。
 3. 点击「加载已解压的扩展程序」，选择仓库的 **`extension` 文件夹**，或包含 `manifest.json` 的解压目录。
 4. 打开网页，点击 ImageTaken 图标打开侧边栏；右上角 `↗` 可打开独立标签页。
 
-更新本地代码后，在扩展管理页点击「重新加载」。
+更新本地源码后先执行 `npm run build`，再在扩展管理页点击「重新加载」。
 
 ## 使用
 
@@ -38,7 +38,10 @@
 ## 开发
 
 ```sh
-npm run check       # Manifest 引用与 JavaScript 语法
+npm ci              # 安装锁定的开发依赖
+npm run typecheck   # 严格类型检查及类型安全规则
+npm run build       # src/*.ts 编译到 extension/*.js
+npm run check       # 构建、类型安全、Manifest 与本地资源引用
 npm test            # 单元测试
 npm run package     # 生成扩展 ZIP
 ```

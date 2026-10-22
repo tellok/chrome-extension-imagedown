@@ -1,18 +1,29 @@
 # 开发与验证
 
-扩展位于 `extension/`，使用原生 JavaScript 模块，无运行时依赖，不需要构建或执行 `npm install` 才能加载。浏览器最低版本以 Manifest 为准；OpenSpec CLI 的开发环境需要 Node.js 20.19+，现有 CI 使用 Node.js 22。
+扩展 TypeScript 源码位于 `src/`，静态资源与生成的原生 JavaScript 模块位于 `extension/`，无运行时依赖。首次加载源码版须执行 `npm ci` 和 `npm run build`；生成脚本不纳入版本控制，后续修改应编辑 `src/`。浏览器最低版本以 Manifest 为准；OpenSpec CLI 的开发环境需要 Node.js 20.19+，现有 CI 使用 Node.js 22。
 
 ## 常用命令
 
 ```sh
-npm run check       # JavaScript 语法、Manifest 引用资源
-npm test            # Node 单元测试
+npm ci              # 依赖锁文件安装
+npm run typecheck   # 全量严格类型检查和 AST 安全规则
+npm run build       # 清理遗留脚本并编译到 extension/
+npm run check       # 构建、语法和 Manifest/HTML/CSS/模块/注入/线程资源检查
+npm test            # 先构建，再运行既有 Node 单元测试
 npm run package     # dist/imagetaken-<manifest-version>.zip
 ```
 
-ZIP 根目录包含 `manifest.json`，仅打包 `extension/` 文件，不含规格、开发工具和测试资源。更新未打包扩展后，需在 `chrome://extensions` 点击 ImageTaken 的「重新加载」；仅修改磁盘文件不会自动更新已加载的 Manifest。
+ZIP 根目录包含 `manifest.json`，先执行完整检查和构建，再仅打包 `extension/` 的运行资源，不含 TypeScript 源码、声明、源码映射、规格、开发工具和测试资源。更新未打包扩展后，需在 `chrome://extensions` 点击 ImageTaken 的「重新加载」；仅修改磁盘文件不会自动更新已加载的 Manifest。
+
+## TypeScript 构建约定
+
+`tsconfig.json` 对全部扩展源码启用 `strict` 和 `noEmitOnError`，使用 ES2022 原生模块输出，保留 `.js` 导入路径。Chrome API 使用开发期类型声明，共享数据模型位于 `src/models.ts`，浏览器上下文补充声明位于 `src/environment.d.ts`。`scripts/build.mjs` 使用编译器抽象语法树（Abstract Syntax Tree, AST）禁止显式 `any`、类型断言、非空断言和关闭检查注释。外部数据先用 `unknown` 与运行时校验处理。
+
+构建成功后清理旧生成脚本并输出；类型失败不会进入打包。采集器、徽标观察器与原页高亮脚本保持经典脚本形式，避免注入后出现模块闭包依赖。译文目录编译后继续保持可解析的数据导出文本。发布包解压即可加载，无需 Node 或编译器。
 
 ## 浏览器集成测试
+
+测试标题统一用英文陈述句描述预期行为，Python函数使用对应的 `test_` 命名。历史编号仅用于旧规格追踪与定向筛选兼容，完整新旧名称见[测试名称对照表](test-naming-review.md)。既有 `EXTRACTION_TEST`、`SYNC_TEST`、`REMOTE_TEST` 的编号及旧名称筛选方式保持原样，运行报告展示语义化标题。
 
 ```sh
 python3 -m venv .venv
@@ -64,7 +75,7 @@ npx --yes @fission-ai/openspec@1.14.3 archive <change-name>
 | `panel.html/css/js` | 侧栏和固定源页面的独立图片库 |
 | `selection-highlights.js`、`source-highlights-background.js`、`source-highlights.js` | 选择快照、按文档路由的视图会话及原页临时红框 |
 
-以上模块均位于 `extension/`。底层文件划分是开发索引，不是稳定的产品 API；验收依据以主规范为准。
+以上脚本的可维护源码均位于 `src/`，使用 `.ts` 后缀；表内 `.js` 是编译后运行路径，生成脚本位于 `extension/`。底层文件划分是开发索引，不是稳定的产品 API；验收依据以主规范为准。
 
 ## 选中图片的原页红框
 
@@ -156,3 +167,11 @@ python tests/settings_sync_browser_test.py
 来源头规则生效期间使用跨URL的独占网络租约，普通/订阅请求平时可读共享；这避免未知重定向进入另一个URL时误用临时Referer。实际完整原图缓存指扩展已持有的Blob/Data URL；新的HTTP读取统一交给后台，页面读取仅处理内嵌数据、Blob、画布及像素。后台共享结果缓存有64MiB编码预算，扫描交付原图总量32MiB、调试原图8MiB，超出预算保留候选供按需处理。
 
 图库搜索写入由可信图库消息交给后台排队并取得共享配置锁，避免增量工作期间刷新或关闭视图取消尚未取得锁的保存；搜索仍按源网页hostname隔离，未完成输入不由其他视图的保存覆盖。
+
+## 设置与预览生命周期
+
+标题清洗、成功图片优先和下载清单开关的写入由后台校验设置页来源、配置键及布尔值，并在既有配置锁中完成；设置页重载不会取消已发起的写入。保存反馈仅在实际写入完成后显示，错误时保留原值。
+
+没有本地数据的 HTTP 图片预览按可见范围或显式 eager 加载，通过与下载共用的完整原图任务获取数据，再使用本地对象地址展示；不另用图库图片元素直接请求远程地址。主动重试保留原有独立代次，静态像素缩略图不进入原文件缓存。
+
+图库选择快照通过微任务发送，确保图库退到后台时取消操作仍能到达后台协调器；原页矩形绘制仍按动画帧更新。外部 XPath/CSS 范围更新复用有效配置更新路径，为仍有效的选择更新来源标识，移除范围外的选择；手动刷新和导航仍清空失效选择。

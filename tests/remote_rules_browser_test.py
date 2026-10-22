@@ -164,7 +164,7 @@ def session(p, origin):
             s.context.close()
 
 
-def test_RB01_settings_management(p, origin):
+def test_subscription_settings_support_adding_refreshing_reordering_and_removing_sources(p, origin):
     with session(p, origin) as s:
         first = s.add({'width': 80})
         second = s.add({'height': 60}, name='/b/localhost.json')
@@ -184,7 +184,7 @@ def test_RB01_settings_management(p, origin):
         assert 'Cookie' not in HEADERS['/b/localhost.json'] and 'Referer' not in HEADERS['/b/localhost.json']
 
 
-def test_RB02_invalid_duplicate_and_initial_failure(p, origin):
+def test_subscription_settings_reject_invalid_and_duplicate_urls_and_expose_initial_fetch_failures(p, origin):
     with session(p, origin) as s:
         s.settings.locator('#subscription-url').fill('https://rules.test/not-a-rule')
         s.settings.locator('#subscriptions-add').click()
@@ -204,7 +204,7 @@ def test_RB02_invalid_duplicate_and_initial_failure(p, origin):
         assert not s.rpc('list')['entries'][-1].get('document')
 
 
-def test_RB03_offline_alarm_and_restart(p, origin):
+def test_subscriptions_preserve_cached_rules_offline_and_resume_scheduled_refreshes_after_worker_restart(p, origin):
     with session(p, origin) as s:
         first = s.add({'width': 200})
         s.page()
@@ -224,7 +224,7 @@ def test_RB03_offline_alarm_and_restart(p, origin):
         s.badge('0')
 
 
-def test_RB04_badge_before_panel_and_paths(p, origin):
+def test_remote_rules_affect_badges_before_a_gallery_opens_and_respect_page_paths_without_extra_image_requests(p, origin):
     with session(p, origin) as s:
         entry = s.add({'width': 200}, '/one$')
         s.page('/one')
@@ -242,7 +242,7 @@ def test_RB04_badge_before_panel_and_paths(p, origin):
         s.badge('3')
 
 
-def test_RB05_overrides_reset_and_provenance(p, origin):
+def test_local_overrides_take_precedence_over_remote_defaults_and_reset_controls_restore_inheritance(p, origin):
     with session(p, origin) as s:
         entry = s.add({'width': 200, 'query': 'large'})
         s.page()
@@ -266,7 +266,7 @@ def test_RB05_overrides_reset_and_provenance(p, origin):
         s.badge('3')
 
 
-def test_RB06_remote_scope_and_exclusions(p, origin):
+def test_remote_xpath_scopes_and_css_exclusions_restrict_the_discovered_image_set(p, origin):
     with session(p, origin) as s:
         entry = s.add({'xpath': '//main', 'excludedSelectors': '.ad'})
         s.page('/scope')
@@ -282,7 +282,7 @@ def test_RB06_remote_scope_and_exclusions(p, origin):
         expect(panel.locator('.card')).to_have_count(3)
 
 
-def test_RB07_updates_reuse_previews_and_drafts(p, origin):
+def test_remote_rule_updates_reuse_previews_and_preserve_selections_and_unsaved_drafts(p, origin):
     with session(p, origin) as s:
         entry = s.add({'width': 50})
         s.page()
@@ -304,7 +304,7 @@ def test_RB07_updates_reuse_previews_and_drafts(p, origin):
         assert {k:v for k,v in COUNTS.items() if k.endswith('.png')} == {k:v for k,v in before.items() if k.endswith('.png')}
 
 
-def test_RB08_regex_timeout_and_offscreen_singleton(p, origin):
+def test_regular_expression_timeouts_preserve_usable_rules_and_concurrent_requests_share_one_offscreen_host(p, origin):
     with session(p, origin) as s:
         entry = s.add()
         source = s.page('/' + 'a' * 100 + '!')
@@ -322,7 +322,7 @@ def test_RB08_regex_timeout_and_offscreen_singleton(p, origin):
         assert s.settings.locator('#subscription-url').input_value().endswith('.json')
 
 
-def test_RB09_navigation_and_removal_invalidate_results(p, origin):
+def test_navigation_and_subscription_removal_invalidate_late_rule_evaluation_and_refresh_results(p, origin):
     with session(p, origin) as s:
         entry = s.add({'width': 200}, '/one$', name='/slow/127.0.0.1.json')
         s.page()
@@ -351,7 +351,7 @@ def test_RB09_navigation_and_removal_invalidate_results(p, origin):
         assert not s.rpc('list')['entries']
 
 
-def test_RB10_languages_themes_and_narrow_layout(p, origin):
+def test_subscription_controls_remain_usable_across_languages_themes_and_narrow_layouts(p, origin):
     with session(p, origin) as s:
         s.add(name='/' + 'long-' * 35 + '/127.0.0.1.json')
         s.settings.set_viewport_size({'width': 320, 'height': 900})
@@ -375,7 +375,7 @@ def test_RB10_languages_themes_and_narrow_layout(p, origin):
         panel.screenshot(path=str(OUTPUT / 'panel-dark-320.png'))
 
 
-def test_RB11_invalid_selectors_preserve_cache(p, origin):
+def test_invalid_remote_selectors_preserve_the_last_valid_cached_rule_document(p, origin):
     with session(p, origin) as s:
         entry = s.add({'width': 200})
         s.page()
@@ -389,7 +389,7 @@ def test_RB11_invalid_selectors_preserve_cache(p, origin):
         expect(s.settings.locator('.subscription .error')).to_be_visible()
 
 
-def test_RB12_download_batch_defers_remote_update(p, origin):
+def test_active_download_batches_retain_their_filters_until_remote_rule_updates_can_be_applied(p, origin):
     with session(p, origin) as s:
         entry = s.add({'width': 50})
         s.page()
@@ -420,6 +420,23 @@ def test_RB12_download_batch_defers_remote_update(p, origin):
         expect(s.settings.locator('#download-manifest')).not_to_be_checked()
 
 
+
+# Preserve all legacy substring selectors without displaying numbered names.
+TEST_CASES = {
+    'test_subscription_settings_support_adding_refreshing_reordering_and_removing_sources': ('test_RB01_settings_management', 'Subscription settings support adding, refreshing, reordering, and removing sources.'),
+    'test_subscription_settings_reject_invalid_and_duplicate_urls_and_expose_initial_fetch_failures': ('test_RB02_invalid_duplicate_and_initial_failure', 'Subscription settings reject invalid and duplicate URLs and expose initial fetch failures.'),
+    'test_subscriptions_preserve_cached_rules_offline_and_resume_scheduled_refreshes_after_worker_restart': ('test_RB03_offline_alarm_and_restart', 'Subscriptions preserve cached rules offline and resume scheduled refreshes after worker restart.'),
+    'test_remote_rules_affect_badges_before_a_gallery_opens_and_respect_page_paths_without_extra_image_requests': ('test_RB04_badge_before_panel_and_paths', 'Remote rules affect badges before a gallery opens and respect page paths without extra image requests.'),
+    'test_local_overrides_take_precedence_over_remote_defaults_and_reset_controls_restore_inheritance': ('test_RB05_overrides_reset_and_provenance', 'Local overrides take precedence over remote defaults and reset controls restore inheritance.'),
+    'test_remote_xpath_scopes_and_css_exclusions_restrict_the_discovered_image_set': ('test_RB06_remote_scope_and_exclusions', 'Remote XPath scopes and CSS exclusions restrict the discovered image set.'),
+    'test_remote_rule_updates_reuse_previews_and_preserve_selections_and_unsaved_drafts': ('test_RB07_updates_reuse_previews_and_drafts', 'Remote rule updates reuse previews and preserve selections and unsaved drafts.'),
+    'test_regular_expression_timeouts_preserve_usable_rules_and_concurrent_requests_share_one_offscreen_host': ('test_RB08_regex_timeout_and_offscreen_singleton', 'Regular expression timeouts preserve usable rules and concurrent requests share one offscreen host.'),
+    'test_navigation_and_subscription_removal_invalidate_late_rule_evaluation_and_refresh_results': ('test_RB09_navigation_and_removal_invalidate_results', 'Navigation and subscription removal invalidate late rule evaluation and refresh results.'),
+    'test_subscription_controls_remain_usable_across_languages_themes_and_narrow_layouts': ('test_RB10_languages_themes_and_narrow_layout', 'Subscription controls remain usable across languages, themes, and narrow layouts.'),
+    'test_invalid_remote_selectors_preserve_the_last_valid_cached_rule_document': ('test_RB11_invalid_selectors_preserve_cache', 'Invalid remote selectors preserve the last valid cached rule document.'),
+    'test_active_download_batches_retain_their_filters_until_remote_rule_updates_can_be_applied': ('test_RB12_download_batch_defers_remote_update', 'Active download batches retain their filters until remote rule updates can be applied.'),
+}
+
 if __name__ == '__main__':
     server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     Thread(target=server.serve_forever, daemon=True).start()
@@ -428,9 +445,9 @@ if __name__ == '__main__':
     try:
         with sync_playwright() as p:
             for name, case in list(globals().items()):
-                if name.startswith('test_RB') and (not selected or selected in name):
+                if name.startswith('test_') and (not selected or selected in TEST_CASES[name][0]):
                     RULES.clear()
                     case(p, origin)
-                    print(f'PASS {name}', flush=True)
+                    print('PASS '+TEST_CASES[name][1], flush=True)
     finally:
         server.shutdown()

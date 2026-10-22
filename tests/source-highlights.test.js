@@ -23,7 +23,7 @@ function fixture(execute = async () => [{ result: true }]) {
   return { calls, errors, port, update, messages };
 }
 
-test('HU01 仅最新选择序号可更新活动会话', async () => {
+test('Only the latest selection sequence can update an active highlight session.', async () => {
   let unblock;
   const f = fixture(options => options.files ? new Promise(resolve => { unblock = resolve; }) : Promise.resolve([{ result: true }]));
   const p = f.port();
@@ -37,7 +37,7 @@ test('HU01 仅最新选择序号可更新活动会话', async () => {
   assert.equal(f.messages().length, 1);
 });
 
-test('HU02 按完整文档标识分组并隔离失败', async () => {
+test('Highlight updates target exact documents and isolate failures between documents.', async () => {
   const f = fixture(async options => {
     if (options.target.documentIds[0] === 'denied') throw new Error('Document inaccessible');
     return [{ result: true }];
@@ -53,7 +53,7 @@ test('HU02 按完整文档标识分组并隔离失败', async () => {
   p.onDisconnect.fire(); await settle();
 });
 
-test('HU03 视图释放不清除其他会话并拒绝伪造消息', async () => {
+test('Releasing one highlight view preserves other sessions and rejects forged messages.', async () => {
   const f = fixture(), a = f.port(), b = f.port();
   const forged = f.port({ id: 'site', url: 'https://example.com/' });
   assert.equal(forged.accepted, false);
@@ -72,7 +72,7 @@ test('HU03 视图释放不清除其他会话并拒绝伪造消息', async () => 
   b.onDisconnect.fire(); await settle();
 });
 
-test('HU04 源页切换使旧映射与续期失效', async () => {
+test('Switching source tabs releases old highlights and rejects stale renewals.', async () => {
   const f = fixture(), p = f.port();
   f.update(p, 1, [{ documentId: 'old', id: '1:0' }], 7); await settle();
   f.update(p, 2, [{ documentId: 'new', id: '1:0' }], 8); await settle();
