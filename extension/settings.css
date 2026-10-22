@@ -49,3 +49,8 @@
 #sync-differences h4, #sync-status { overflow-wrap: anywhere; }
 
 #sync-differences section > strong { display: block; margin: 12px 0 6px; }
+
+.setting-row[for="chrome-sync"] { padding-bottom: 18px; }
+#sync-conflict-message { margin: 0 0 12px; color: var(--muted); line-height: 1.7; }
+#sync-diff > summary { cursor: pointer; }
+#sync-feedback[hidden] { display: none; }

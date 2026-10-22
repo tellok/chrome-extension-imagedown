@@ -317,7 +317,13 @@ export const catalogs = {
     "发现不同配置，请选择使用的版本。": "Different settings found. Choose a version.",
     "等待完整同步数据": "Waiting for complete sync data",
     "配置同步失败：{0}": "Settings sync failed: {0}",
-    "配置同步需要选择版本，前往设置查看。": "Settings sync needs a version choice. Open settings."
+    "配置同步需要选择版本，前往设置查看。": "Settings sync needs a version choice. Open settings.",
+    "本机与同步的配置不一致，请选择要使用的设置。": "Local and synced settings differ. Choose which settings to use.",
+    "使用同步设置": "Use synced settings",
+    "同步设置": "Synced settings",
+    "同步版本 {0}": "Synced version {0}",
+    "操作未完成，请重试。": "Could not complete the action. Please try again.",
+    "重试": "Try again"
   },
   "ja": {
     " · 失败 {0}": " · 失敗 {0}",
@@ -636,7 +642,13 @@ export const catalogs = {
     "发现不同配置，请选择使用的版本。": "異なる設定があります。使用する版を選択してください。",
     "等待完整同步数据": "同期データの完了待ち",
     "配置同步失败：{0}": "設定の同期に失敗：{0}",
-    "配置同步需要选择版本，前往设置查看。": "同期する版の選択が必要です。設定を開いてください。"
+    "配置同步需要选择版本，前往设置查看。": "同期する版の選択が必要です。設定を開いてください。",
+    "本机与同步的配置不一致，请选择要使用的设置。": "この端末と同期先の設定が異なります。使用する設定を選択してください。",
+    "使用同步设置": "同期先の設定を使用",
+    "同步设置": "同期先の設定",
+    "同步版本 {0}": "同期バージョン {0}",
+    "操作未完成，请重试。": "操作を完了できませんでした。再試行してください。",
+    "重试": "再試行"
   },
   "de": {
     " · 失败 {0}": " · Fehlgeschlagen {0}",
@@ -955,7 +967,13 @@ export const catalogs = {
     "发现不同配置，请选择使用的版本。": "Unterschiedliche Einstellungen gefunden. Bitte Version wählen.",
     "等待完整同步数据": "Warten auf vollständige Sync-Daten",
     "配置同步失败：{0}": "Synchronisierung fehlgeschlagen: {0}",
-    "配置同步需要选择版本，前往设置查看。": "Bitte eine Einstellungsversion wählen. Einstellungen öffnen."
+    "配置同步需要选择版本，前往设置查看。": "Bitte eine Einstellungsversion wählen. Einstellungen öffnen.",
+    "本机与同步的配置不一致，请选择要使用的设置。": "Lokale und synchronisierte Einstellungen unterscheiden sich. Wählen Sie die gewünschten Einstellungen.",
+    "使用同步设置": "Synchronisierte Einstellungen verwenden",
+    "同步设置": "Synchronisierte Einstellungen",
+    "同步版本 {0}": "Synchronisierte Version {0}",
+    "操作未完成，请重试。": "Die Aktion konnte nicht abgeschlossen werden. Bitte erneut versuchen.",
+    "重试": "Erneut versuchen"
   },
   "ko": {
     " · 失败 {0}": " · 실패 {0}",
@@ -1274,7 +1292,13 @@ export const catalogs = {
     "发现不同配置，请选择使用的版本。": "다른 설정을 발견했습니다. 사용할 버전을 선택하세요.",
     "等待完整同步数据": "전체 동기화 데이터 대기 중",
     "配置同步失败：{0}": "설정 동기화 실패: {0}",
-    "配置同步需要选择版本，前往设置查看。": "동기화 버전을 선택해야 합니다. 설정을 여세요."
+    "配置同步需要选择版本，前往设置查看。": "동기화 버전을 선택해야 합니다. 설정을 여세요.",
+    "本机与同步的配置不一致，请选择要使用的设置。": "기기 설정과 동기화된 설정이 다릅니다. 사용할 설정을 선택하세요.",
+    "使用同步设置": "동기화된 설정 사용",
+    "同步设置": "동기화된 설정",
+    "同步版本 {0}": "동기화 버전 {0}",
+    "操作未完成，请重试。": "작업을 완료하지 못했습니다. 다시 시도하세요.",
+    "重试": "다시 시도"
   },
   "fr": {
     " · 失败 {0}": " · Échecs {0}",
@@ -1593,7 +1617,13 @@ export const catalogs = {
     "发现不同配置，请选择使用的版本。": "Paramètres différents détectés. Choisissez une version.",
     "等待完整同步数据": "En attente des données complètes",
     "配置同步失败：{0}": "Échec de la synchronisation : {0}",
-    "配置同步需要选择版本，前往设置查看。": "Choisissez une version dans les paramètres pour synchroniser."
+    "配置同步需要选择版本，前往设置查看。": "Choisissez une version dans les paramètres pour synchroniser.",
+    "本机与同步的配置不一致，请选择要使用的设置。": "Les paramètres locaux et synchronisés diffèrent. Choisissez ceux à utiliser.",
+    "使用同步设置": "Utiliser les paramètres synchronisés",
+    "同步设置": "Paramètres synchronisés",
+    "同步版本 {0}": "Version synchronisée {0}",
+    "操作未完成，请重试。": "L’action n’a pas abouti. Veuillez réessayer.",
+    "重试": "Réessayer"
   },
   "zh-CN": {
     " · 失败 {0}": " · 失败 {0}",
@@ -1912,7 +1942,13 @@ export const catalogs = {
     "发现不同配置，请选择使用的版本。": "发现不同配置，请选择使用的版本。",
     "等待完整同步数据": "等待完整同步数据",
     "配置同步失败：{0}": "配置同步失败：{0}",
-    "配置同步需要选择版本，前往设置查看。": "配置同步需要选择版本，前往设置查看。"
+    "配置同步需要选择版本，前往设置查看。": "配置同步需要选择版本，前往设置查看。",
+    "本机与同步的配置不一致，请选择要使用的设置。": "本机与同步的配置不一致，请选择要使用的设置。",
+    "使用同步设置": "使用同步设置",
+    "同步设置": "同步设置",
+    "同步版本 {0}": "同步版本 {0}",
+    "操作未完成，请重试。": "操作未完成，请重试。",
+    "重试": "重试"
   },
   "zh-TW": {
     " · 失败 {0}": " · 失敗 {0}",
@@ -2231,6 +2267,12 @@ export const catalogs = {
     "发现不同配置，请选择使用的版本。": "發現不同設定，請選擇使用的版本。",
     "等待完整同步数据": "等待完整同步資料",
     "配置同步失败：{0}": "設定同步失敗：{0}",
-    "配置同步需要选择版本，前往设置查看。": "設定同步需要選擇版本，前往設定查看。"
+    "配置同步需要选择版本，前往设置查看。": "設定同步需要選擇版本，前往設定查看。",
+    "本机与同步的配置不一致，请选择要使用的设置。": "本機與同步的設定不一致，請選擇要使用的設定。",
+    "使用同步设置": "使用同步設定",
+    "同步设置": "同步設定",
+    "同步版本 {0}": "同步版本 {0}",
+    "操作未完成，请重试。": "操作未完成，請重試。",
+    "重试": "重試"
   }
 };

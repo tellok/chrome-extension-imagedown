@@ -1,4 +1,4 @@
-"""SB01–SB12: native Chrome storage in disposable profiles, test-only replication.
+"""SB01–SB13: native Chrome storage in disposable profiles, test-only replication.
 No real Google account or Google-cloud delivery is tested.
 """
 from contextlib import contextmanager
@@ -103,7 +103,18 @@ def test_SB02_initial_native_storage(p, origin):
     with session(p, origin) as s:
         wait_state(s, 'equal')
         assert any(k.endswith(':head') for k in get(s, 'sync')), {'local':get(s), 'cloud':get(s,'sync')}
-        expect(s.settings.locator('#sync-status')).to_have_text('已写入 Chrome 同步存储')
+        group = s.settings.locator('section.settings-group:has(#chrome-sync)')
+        expect(group.locator('.setting-description, .settings-note')).to_have_count(0)
+        expect(s.settings.locator('#chrome-sync')).to_be_checked()
+        original = get(s)[STATE]
+        for state in ['checking', 'equal', 'pending', 'waiting-data', 'error']:
+            put(s, {STATE: {'state':state, 'enabled':True, 'ready':True, 'candidates':[], 'error':'QUOTA_BYTES_PER_ITEM'}})
+            expect(s.settings.locator('#sync-feedback')).to_be_hidden()
+            expect(s.settings.locator('#sync-conflict')).to_be_hidden()
+            expect(s.settings.locator('#sync-retry')).to_be_hidden()
+            expect(s.settings.locator('#chrome-sync')).to_be_checked()
+            assert 'QUOTA_BYTES_PER_ITEM' not in group.inner_text()
+        put(s, {STATE:original})
         s.settings.locator('#default-min-width').fill('75')
         expect(s.settings.locator('#settings-status')).to_have_text('已保存')
         assert get(s)['filters:width'] == 75
@@ -116,9 +127,16 @@ def test_SB03_auto_publish_choose_and_badge(p, origin):
         # UI local save triggers the automatic publication path.
         a.settings.wait_for_timeout(11000)
         bridge(a, b); wait_state(b, 'conflict')
+        expect(b.settings.locator('#sync-conflict-message')).to_have_text('本机与同步的配置不一致，请选择要使用的设置。')
+        expect(b.settings.locator('#sync-use-local')).to_be_visible()
+        expect(b.settings.locator('#sync-candidates button')).to_have_text('使用同步设置')
+        expect(b.settings.locator('#sync-candidates p')).to_have_count(0)
+        assert not b.settings.locator('#sync-diff').evaluate('e=>e.open')
         assert get(b).get('filters:width') is None
         b.badge('3')
         choose_cloud(b)
+        expect(b.settings.locator('#sync-conflict')).to_be_hidden()
+        expect(b.settings.locator('#sync-feedback')).to_be_hidden()
         expect(b.panel.locator('#min-width')).to_have_attribute('placeholder', '全局默认(200)')
         b.badge('2')
 
@@ -137,15 +155,29 @@ def test_SB04_concurrent_candidates(p, origin):
 
 def test_SB05_diff_languages_and_layout(p, origin):
     with pair(p, origin) as (a, b):
+        publish(b, {'settings:theme':'light'})
         publish(a, {'image-query:v1:one.test':'<script>alert(1)</script>'+'长'*1200})
-        bridge(a, b); wait_state(b, 'conflict')
+        bridge(a, b); state=wait_state(b, 'conflict')
+        assert len(state['candidates']) == 2
         b.settings.locator('#sync-diff').evaluate('e=>e.open=true')
-        b.settings.locator('#sync-differences details').first.evaluate('e=>e.open=true')
+        b.settings.locator('#sync-differences details').filter(has_text='<script>').first.evaluate('e=>e.open=true')
         for lang in ['zh-CN','zh-TW','en','ja','de','ko','fr']:
+            put(a, {'settings:language':lang})
             put(b, {'settings:language':lang})
             b.settings.wait_for_function('lang=>document.documentElement.lang===lang', arg=lang)
             for theme in ['light','dark']:
+                put(a, {'settings:theme':theme})
                 put(b, {'settings:theme':theme}); b.settings.set_viewport_size({'width':320,'height':900})
+                a.settings.set_viewport_size({'width':320,'height':900})
+                labels = {'zh-CN':'使用同步设置','zh-TW':'使用同步設定','en':'Use synced settings','ja':'同期先の設定を使用','de':'Synchronisierte Einstellungen verwenden','ko':'동기화된 설정 사용','fr':'Utiliser les paramètres synchronisés'}
+                expect(b.settings.locator('#sync-candidates button').first).to_have_text(labels[lang])
+                titles=b.settings.locator('#sync-candidates p').all_text_contents()
+                assert len(titles)==2 and all('·' in title for title in titles)
+                assert all(c['deviceId'][:8] not in b.settings.locator('#sync-conflict').inner_text() for c in state['candidates'])
+                expect(a.settings.locator('#sync-conflict')).to_be_hidden()
+                expect(a.settings.locator('#sync-feedback')).to_be_hidden()
+                assert a.settings.evaluate('document.documentElement.scrollWidth<=innerWidth'), lang
+                a.settings.locator('section.settings-group:has(#chrome-sync)').screenshot(path=str(OUTPUT / f'compact-{lang}-{theme}.png'))
                 assert b.settings.evaluate('document.documentElement.scrollWidth<=innerWidth'), lang
                 b.settings.screenshot(path=str(OUTPUT / f'{lang}-{theme}.png'), full_page=True)
         assert b.settings.locator('#sync-differences').inner_text().find('<script>') >= 0
@@ -270,8 +302,62 @@ def test_SB12_native_quota_recovery(p, origin):
         huge='猫'*40000; put(s,{'image-query:v1:one.test':huge})
         rpc(s,'retry'); result=wait_state(s,'error'); assert 'quota' in result['error']
         assert get(s)['image-query:v1:one.test']==huge and get(s,'sync')==old
+        expect(s.settings.locator('#sync-feedback')).to_be_hidden()
+        expect(s.settings.locator('#sync-retry')).to_be_hidden()
         put(s,{'image-query:v1:one.test':'small','filters:width':88});s.settings.wait_for_timeout(11000)
-        s.settings.locator('#sync-retry').click();wait_state(s,'equal');assert get(s)['filters:width']==88
+        wait_state(s,'equal');assert get(s)['filters:width']==88
+        expect(s.settings.locator('#sync-feedback')).to_be_hidden()
+
+
+def test_SB13_sync_action_failure_feedback(p, origin):
+    with pair(p, origin) as (a,b):
+        publish(a, {'filters:width':200}); bridge(a,b); wait_state(b,'conflict')
+        b.settings.evaluate("""()=>{
+          const original=chrome.runtime.sendMessage.bind(chrome.runtime);
+          window.syncOperations=[];
+          chrome.runtime.sendMessage=async message=>{
+            if(message.type==='settings-sync')syncOperations.push(message.operation);
+            const response=await original(message);
+            return message.operation==='choose' && !response.ok ? {...response,error:response.error+' QUOTA_BYTES_PER_ITEM'} : response;
+          };
+        }""")
+        # Make the displayed token stale; use the real engine's rejection path.
+        put(b, {'filters:width':300})
+        b.settings.locator('#sync-candidates button').first.click()
+        expect(b.settings.locator('#sync-status')).to_have_text('操作未完成，请重试。')
+        expect(b.settings.locator('#sync-feedback')).to_be_visible()
+        assert 'QUOTA_BYTES_PER_ITEM' not in b.settings.locator('main').inner_text()
+        assert get(b)['filters:width']==300
+        b.settings.locator('#sync-retry').click()
+        expect(b.settings.locator('#sync-feedback')).to_be_hidden()
+        expect(b.settings.locator('#sync-conflict')).to_be_visible()
+        assert b.settings.evaluate('window.syncOperations')==['choose','retry']
+        assert get(b)['filters:width']==300
+        choose_cloud(b)
+        expect(b.settings.locator('#sync-conflict')).to_be_hidden()
+        expect(b.settings.locator('#sync-feedback')).to_be_hidden()
+        assert get(b)['filters:width']==200
+        # Initial UI read failure gets the same concise, recoverable feedback.
+        fresh=b.context.new_page()
+        fresh.add_init_script("""(()=>{
+          const original=chrome.runtime.sendMessage.bind(chrome.runtime);
+          let first=true;
+          chrome.runtime.sendMessage=async message=>{
+            if(first && message.type==='settings-sync' && message.operation==='status'){
+              first=false;return {ok:false,error:'QUOTA_BYTES_PER_ITEM'};
+            }
+            return original(message);
+          };
+        })()""")
+        fresh.goto(f'chrome-extension://{b.extension_id}/settings.html')
+        expect(fresh.locator('#sync-status')).to_have_text('操作未完成，请重试。')
+        expect(fresh.locator('#chrome-sync')).to_be_disabled()
+        assert 'QUOTA_BYTES_PER_ITEM' not in fresh.locator('main').inner_text()
+        fresh.locator('#sync-retry').click()
+        expect(fresh.locator('#sync-feedback')).to_be_hidden()
+        expect(fresh.locator('#chrome-sync')).to_be_enabled()
+        expect(fresh.locator('#chrome-sync')).to_be_checked()
+        fresh.close()
 
 
 if __name__=='__main__':
