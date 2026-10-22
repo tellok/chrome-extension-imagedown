@@ -2,8 +2,9 @@ import { t } from './i18n.js';
 import { readImage } from './api.js';
 
 export function previewOrigin(item) {
-  const method = item.retryPreview ? item.previewMethod : item.browserData ? 'debugger-resource' : item.preview ? (item.kind === 'canvas' ? 'canvas' : 'decoded-pixels') :
+  const method = item.retryPreview ? item.previewMethod : item.browserData ? (item.browserMethod || 'debugger-resource') : item.preview ? (item.kind === 'canvas' ? 'canvas' : 'decoded-pixels') :
     /^(data:|blob:)/.test(item.url) ? 'embedded' : 'url';
+  if (method === 'mhtml-resource') return { kind: 'page', label: t('归档资源'), detail: t('从网页归档提取完整原始图片数据，没有重新请求图片地址。') };
   if (method === 'debugger-resource') return { kind: 'page', label: t('浏览器资源'), detail: t('直接读取浏览器保留的原始图片数据，没有通过图片 URL 重新请求。') };
   if (method === 'page-cache') return { kind: 'page', label: t('页面提取'), detail: t('预览读取自页面已有缓存中的原文件。') };
   if (['canvas', 'decoded-pixels', 'embedded', 'page-blob'].includes(method)) {
@@ -21,9 +22,7 @@ export function previewOrigin(item) {
 // Reuse page pixels/cache first. Only bypass the cache if reuse itself failed,
 // so a cached HTTP failure can still be recovered without changing signed URLs.
 export async function loadPreview(tabId, item) {
-  let result;
-  try { result = await readImage(tabId, item, { preview: true }); }
-  catch { result = await readImage(tabId, item, { refresh: true, preview: true }); }
+  const result = await readImage(tabId, item, { refresh: true, preview: true });
   const { blob, method } = result;
   const url = URL.createObjectURL(blob);
   const image = new Image();

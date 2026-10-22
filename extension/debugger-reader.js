@@ -1,3 +1,4 @@
+import { sourceContext, checkContext, loadEnhanced, ENHANCED_PREFIX } from './enhanced-mode.js';
 // Runs in the extension worker. Each batch owns a short-lived debugger session;
 // it never navigates, reloads, disables cache, or issues resource URL requests.
 const MAX_FILE = 20 * 1024 * 1024;
@@ -5,6 +6,8 @@ const MAX_BATCH = 8 * 1024 * 1024;
 const queues = new Map();
 const sessions = new Map();
 const cancelled = new Set();
+const revisions = new Map();
+const permissionRevisions = new Map();
 const withoutHash = value => { const url = new URL(value); url.hash = ''; return url.href; };
 
 async function validate(tabId, items) {
@@ -63,16 +66,30 @@ async function collect(session, target) {
   } catch { /* Unsupported protocol version or target. */ }
 }
 
-async function readBatch(tabId, items) {
+async function readBatch(tabId, items, retry = false, discover = false, revision = 0, permissions = new Map()) {
+  if ((revisions.get(tabId) || 0) !== revision) return { items: [], unavailable: 'cancelled' };
+  let context;
+  try { context = await sourceContext(tabId); if (!await loadEnhanced(context.hostname)) return { items: [], resources: [], unavailable: 'disabled' }; }
+  catch { return { items: [], resources: [], unavailable: 'permission-unavailable' }; }
+  if ((permissions.get(context.hostname) || 0) !== (permissionRevisions.get(context.hostname) || 0)) return { items: [], unavailable: 'cancelled' };
+  if (retry) cancelled.delete(tabId);
   if (cancelled.has(tabId)) return { items: [], unavailable: 'cancelled' };
   const approved = await validate(tabId, items);
-  if (!approved.size) return { items: [] };
-  const session = { resources: [], pending: [], closing: false, detached: false, owned: false };
+  if (!approved.size && !discover) return { items: [] };
+  const session = { context, resources: [], pending: [], closing: false, detached: false, owned: false };
   sessions.set(tabId, session);
+  const timer = setTimeout(() => { void cancelBrowserTab(tabId); }, 20000);
   const target = { tabId };
   try {
+    await checkContext(context);
+    if (!await loadEnhanced(context.hostname) || session.detached || (revisions.get(tabId) || 0) !== revision) return { items: [] };
     await chrome.debugger.attach(target, '1.3');
     session.owned = true;
+    if (session.detached || !await loadEnhanced(context.hostname) || (revisions.get(tabId) || 0) !== revision) {
+      await chrome.debugger.detach(target).catch(() => {}); session.owned = false; return { items: [] };
+    }
+    await checkContext(context);
+    broadcast(tabId, 'active');
     await collect(session, target);
     await new Promise(resolve => setTimeout(resolve, 0));
     for (let cursor = 0; cursor < session.pending.length; cursor++) await session.pending[cursor];
@@ -94,7 +111,8 @@ async function readBatch(tabId, items) {
           // Recheck document identity after reading, guarding navigation races.
           const stillValid = await validate(tabId, [item]);
           const origin = (stillValid.get(item.key) || []).find(entry => withoutHash(entry.documentURL) === withoutHash(resource.documentURL));
-          if (!origin || session.detached) continue;
+          await checkContext(context);
+          if (!origin || session.detached || !await loadEnhanced(context.hostname)) continue;
           output.push({ key: item.key, url: item.url, dataUrl: `data:${resource.mimeType};base64,${encoded}`, mime: resource.mimeType, bytes,
             origin: { id: origin.id, documentId: origin.documentId }, method: 'debugger-resource' });
           total += bytes;
@@ -102,17 +120,47 @@ async function readBatch(tabId, items) {
         } catch { /* Resource may have been released; do not request its URL. */ }
       }
     }
-    return { items: output };
+    await checkContext(context);
+    if (session.detached || !await loadEnhanced(context.hostname)) return { items: [] };
+    return { items: output, resources: discover ? session.resources.slice(0, 4000).map(({ url, documentURL, mimeType }) => ({ url, documentURL, mime: mimeType })) : [] };
   } catch (error) {
     return { items: [], unavailable: error.message };
   } finally {
+    clearTimeout(timer);
+    broadcast(tabId, cancelled.has(tabId) ? 'stopped' : 'idle');
     session.closing = true;
-    if (session.owned && !session.detached) await chrome.debugger.detach(target).catch(() => {});
+    if (session.release) await session.release;
+    else if (session.owned && !session.detached) await chrome.debugger.detach(target).catch(() => {});
     if (sessions.get(tabId) === session) sessions.delete(tabId);
   }
 }
 
+function broadcast(tabId, status) {
+  void chrome.runtime.sendMessage({ type: 'enhanced-status', tabId, status }).catch(() => {});
+}
+export async function cancelBrowserTab(tabId) {
+  revisions.set(tabId, (revisions.get(tabId) || 0) + 1);
+  const session = sessions.get(tabId);
+  if (!session) return;
+  session.detached = true;
+  session.closing = true;
+  session.release = session.owned ? chrome.debugger.detach({ tabId }).catch(() => {}) : Promise.resolve();
+  await session.release;
+  broadcast(tabId, 'idle');
+}
+export function readBrowserBatch(tabId, items, retry = false, discover = false) {
+  const revision = revisions.get(tabId) || 0, permissions = new Map(permissionRevisions);
+  const operation = (queues.get(tabId) || Promise.resolve()).then(() => readBatch(tabId, items, retry, discover, revision, permissions));
+  const settled = operation.catch(() => {}); queues.set(tabId, settled);
+  operation.finally(() => { if (queues.get(tabId) === settled) queues.delete(tabId); }).catch(() => {});
+  return operation;
+}
 export function registerDebuggerReader() {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    for (const key of Object.keys(changes)) if (key.startsWith(ENHANCED_PREFIX)) { const host = key.slice(ENHANCED_PREFIX.length); permissionRevisions.set(host, (permissionRevisions.get(host) || 0) + 1); }
+    for (const [tabId, session] of sessions) if (changes[ENHANCED_PREFIX + session.context.hostname]?.newValue !== true && Object.hasOwn(changes, ENHANCED_PREFIX + session.context.hostname)) void cancelBrowserTab(tabId);
+  });
   chrome.debugger.onEvent.addListener((source, method, params) => {
     const session = sessions.get(source.tabId);
     if (!session || session.closing || method !== 'Target.attachedToTarget' || params.targetInfo?.type !== 'iframe') return;
@@ -124,9 +172,10 @@ export function registerDebuggerReader() {
     if (!session || session.closing) return;
     session.detached = true;
     cancelled.add(source.tabId);
+    broadcast(source.tabId, 'stopped');
   });
-  chrome.tabs.onUpdated.addListener((tabId, change) => { if (change.status === 'loading') cancelled.delete(tabId); });
-  chrome.tabs.onRemoved.addListener(tabId => { cancelled.delete(tabId); });
+  chrome.tabs.onUpdated.addListener((tabId, change) => { if (change.status === 'loading') { cancelled.delete(tabId); void cancelBrowserTab(tabId); } });
+  chrome.tabs.onRemoved.addListener(tabId => { cancelled.delete(tabId); void cancelBrowserTab(tabId); });
   chrome.runtime.onMessage.addListener((message, sender, respond) => {
     if (message?.type !== 'read-browser-resources') return;
     if (sender.id !== chrome.runtime.id || !sender.url || new URL(sender.url).origin !== new URL(chrome.runtime.getURL('')).origin || new URL(sender.url).pathname !== '/panel.html') return;
@@ -135,11 +184,7 @@ export function registerDebuggerReader() {
       typeof item.key !== 'string' || typeof item.url !== 'string' || !/^https?:\/\//.test(item.url) || !Array.isArray(item.origins) || item.origins.length > 1000)) {
       respond({ items: [], unavailable: 'invalid-request' }); return;
     }
-    const operation = (queues.get(tabId) || Promise.resolve()).then(() => readBatch(tabId, items));
-    const settled = operation.catch(() => {});
-    queues.set(tabId, settled);
-    operation.then(respond, error => respond({ items: [], unavailable: error.message }));
-    operation.finally(() => { if (queues.get(tabId) === settled) queues.delete(tabId); }).catch(() => {});
+    readBrowserBatch(tabId, items, message.retry === true).then(respond, error => respond({ items: [], unavailable: error.message }));
     return true;
   });
 }

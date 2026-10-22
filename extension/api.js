@@ -1,10 +1,11 @@
+import { extractionCall } from './extraction-client.js';
 import { t, translatedSource } from './i18n.js';
 import { filename } from './lib.js';
 import { prepareMetadata } from './metadata.js';
 import { writeImage } from './destination.js';
 import { saveBrowserDownload as save } from './browser-downloads.js';
 import { contentHash } from './file-content.js';
-import { browserResources, cachedBrowserResource } from './browser-resources.js';
+import { cachedBrowserResource } from './browser-resources.js';
 
 export async function scanTab(tabId, xpath = '', excludedSelectors = '') {
   // DevTools XPath is relative to the top document. Never leak unscoped iframe images.
@@ -35,11 +36,43 @@ export async function scanTab(tabId, xpath = '', excludedSelectors = '') {
     }
   }
   const items = await prepareMetadata([...unique.values()]);
-  const resources = await browserResources(tabId, items);
+  let resources = [];
+  try { resources = await extractionCall('archive', { tabId, items: items.filter(item => /^https?:/.test(item.url) && item.kind !== 'canvas') }); } catch { /* Continue with per-image fallback. */ }
+  try {
+    const found = await extractionCall('discover', { tabId, scoped: !!(xpath || excludedSelectors) });
+    for (const record of found || []) {
+      if (unique.has(record.url)) continue;
+      const item = { ...record, key: record.url, order: unique.size };
+      unique.set(item.key, item); items.push(...await prepareMetadata([item]));
+    }
+  } catch { /* Enhanced mode is optional and fails closed. */ }
+  // Loaded targets share the complete extraction task even when the archive misses.
+  try {
+    await extractionCall('subscribe', { tabId });
+    {
+      const resolved = new Set(resources.map(resource => resource.key));
+      const pending = items.filter(item => !resolved.has(item.key) && item.loaded && /^https?:/.test(item.url) && item.kind !== 'canvas');
+      let cursor = 0, retainedBytes = resources.reduce((sum, resource) => sum + (resource.bytes || 0), 0), debuggerBytes = 0;
+      await Promise.all([0, 1].map(async () => { while (cursor < pending.length) {
+        if (retainedBytes >= 32 * 1024 * 1024 || debuggerBytes >= 8 * 1024 * 1024) break;
+        const item = pending[cursor++];
+        try {
+          const result = await readImage(tabId, item);
+          if (retainedBytes + result.blob.size > 32 * 1024 * 1024 || (result.method === 'debugger-resource' && debuggerBytes + result.blob.size > 8 * 1024 * 1024)) {
+            originalImages.delete(item); readingImages.delete(item); item.previewIssue = 'budget'; continue;
+          }
+          retainedBytes += result.blob.size;
+          if (result.method === 'debugger-resource') debuggerBytes += result.blob.size;
+          const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(reader.error); reader.readAsDataURL(result.blob); });
+          resources.push({ dataUrl, method: result.method, bytes: result.blob.size, mime: result.blob.type, key: item.key, url: item.url });
+        } catch { /* Candidate remains retryable. */ }
+      } }));
+    }
+  } catch { /* Keep ordinary results. */ }
   for (const resource of resources) {
     const item = unique.get(resource.key);
     if (!item || item.url !== resource.url) continue;
-    Object.assign(item, { browserData: resource.dataUrl, browserDataURL: resource.url, browserOrigin: resource.origin,
+    Object.assign(item, { browserData: resource.dataUrl, browserDataURL: resource.url, browserOrigin: resource.origin, browserMethod: resource.method,
       bytes: resource.bytes, mime: resource.mime, sizeSource: '浏览器保留的原始资源大小' });
   }
   return { items, frames: frames.filter(f => f.result).length, matchedRoots: frames.reduce((sum, f) => sum + (f.result?.matchedRoots || 0), 0), truncated };
@@ -60,65 +93,51 @@ async function pageData(tabId, item, refresh, preview) {
   throw new Error(errors.join('；'));
 }
 
-async function extensionBlob(url, refresh) {
-  if (!/^https?:/.test(url)) throw new Error(t('此资源只能从原页面读取'));
-  const response = await fetch(url, { cache: refresh ? 'reload' : 'force-cache', credentials: 'include', signal: AbortSignal.timeout(12000) });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const mime = response.headers.get('content-type')?.split(';')[0] || '';
-  if (!mime.startsWith('image/')) throw new Error(t('服务器没有返回图片'));
-  const reader = response.body.getReader();
-  const chunks = [];
-  let bytes = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      bytes += value.byteLength;
-      if (bytes > 20 * 1024 * 1024) throw new Error(t('图片超过 20 MiB 数据读取上限，请使用原格式直接下载'));
-      chunks.push(value);
-    }
-  } finally { await reader.cancel().catch(() => {}); }
-  if (!bytes) throw new Error(t('图片数据为空'));
-  return new Blob(chunks, { type: mime });
-}
-
 const originalImages = new WeakMap();
 const readingImages = new WeakMap();
+let retrySequence = 0;
 
 export async function readImage(tabId, item, options = {}) {
   const cached = originalImages.get(item);
-  if (cached?.url === item.url && !options.refresh) return cached.result;
+  if (cached?.url === item.url) return cached.result;
+  if (options.preview && !cachedBrowserResource(item)) {
+    try {
+      const result = await pageData(tabId, item, false, options.preview);
+      if (result.method === 'decoded-pixels') return { blob: await (await fetch(result.dataUrl)).blob(), method: result.method };
+    } catch { /* Continue the shared full-file task. */ }
+  }
   const pending = readingImages.get(item);
-  if (pending?.url === item.url && pending.preview === !!options.preview && !options.refresh) return pending.promise;
+  if (pending?.url === item.url && !options.refresh && !(pending.failed && cachedBrowserResource(item))) return pending.promise;
   const url = item.url;
   const promise = readImageData(tabId, item, options).then(result => {
-    // Page pixels can be a static/reduced thumbnail. Never pass them off as
-    // original bytes, especially for animated GIF/WebP downloads.
-    if (result.method !== 'decoded-pixels' && item.url === url) originalImages.set(item, { url, result });
+    if (result.method !== 'decoded-pixels' && item.url === url && readingImages.get(item)?.promise === promise) originalImages.set(item, { url, result });
     return result;
   });
-  readingImages.set(item, { url, preview: !!options.preview, promise });
-  try { return await promise; }
-  finally { if (readingImages.get(item)?.promise === promise) readingImages.delete(item); }
+  const entry = { url, promise, failed: false };
+  readingImages.set(item, entry);
+  promise.catch(() => { entry.failed = true; });
+  return promise;
 }
 
-async function readImageData(tabId, item, { refresh = false, preview = false } = {}) {
-  let original = cachedBrowserResource(item);
-  if (!original) {
-    const [resource] = await browserResources(tabId, [item]);
-    original = resource?.dataUrl;
-  }
-  if (original) return { blob: await (await fetch(original)).blob(), method: 'debugger-resource' };
+async function readImageData(tabId, item, { refresh = false } = {}) {
+  const retained = cachedBrowserResource(item);
+  if (retained) return { blob: await (await fetch(retained)).blob(), method: item.browserMethod || 'debugger-resource' };
   let pageError;
   try {
-    const result = await pageData(tabId, item, refresh, preview);
-    // Data URLs have already been bounded in the owning document.
+    const result = await pageData(tabId, item, false, false);
+    if (result.method === 'decoded-pixels') throw new Error('Static pixels are not an original file');
     const blob = await (await fetch(result.dataUrl)).blob();
     if (!blob.type.startsWith('image/')) throw new Error(t('页面返回的数据不是图片'));
     return { blob, method: result.method };
   } catch (error) { pageError = error; }
-  try { return { blob: await extensionBlob(item.url, refresh), method: 'extension-fetch' }; }
-  catch (error) { throw new Error(t(`页面：{0}；扩展：{1}`, pageError.message, error.message)); }
+  if (!/^https?:/.test(item.url) || item.kind === 'canvas') throw pageError;
+  try {
+    const result = await extractionCall('read', { tabId, item, retry: refresh ? `${++retrySequence}:${crypto.randomUUID()}` : 0 });
+    if (!result?.dataUrl) throw new Error('Image unavailable');
+    const blob = await (await fetch(result.dataUrl)).blob();
+    if (!blob.size || !blob.type.startsWith('image/')) throw new Error('Invalid image data');
+    return { blob, method: result.method };
+  } catch (error) { throw new Error(`${pageError.message}；${error.message}`); }
 }
 
 export async function convert(blob, format) {
@@ -145,11 +164,15 @@ export async function downloadImage(tabId, item, index, format, destination = { 
   let result;
   try { result = await readImage(tabId, item); }
   catch (error) {
+    if (format !== 'original') {
+      try { result = await readImage(tabId, item, { preview: 'full' }); } catch { throw error; }
+    } else {
     if (destination.directory || format !== 'original' || !/^https?:/.test(item.url) || item.kind === 'canvas') throw error;
     // Useful for large files or servers that treat fetch and downloads differently.
     const downloaded = await save(item.url, filename(item, index, undefined, format, destination.folder));
     if (downloaded.mime && !downloaded.mime.startsWith('image/')) throw new Error(t('直接下载的响应不是图片，请检查下载目录'));
     return { method: 'browser-download', bytes: downloaded.fileSize, downloadId: downloaded.id, actualPath: downloaded.filename };
+    }
   }
   const blob = await convert(result.blob, format);
   const name = filename(item, index, blob.type, format, destination.folder);

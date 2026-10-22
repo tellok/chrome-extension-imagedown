@@ -18,6 +18,7 @@ jobs:
     - run: npm run check && npm test
     - run: pip install -r tests/requirements.txt
     - run: python -m playwright install --with-deps chromium
+    - run: python tests/extraction_browser_test.py
     - run: python tests/browser_test.py
     - run: python tests/manifest_browser_test.py
     - run: python tests/remote_rules_browser_test.py

@@ -30,6 +30,13 @@ export async function loadQuery(domain) {
 }
 export function saveQuery(domain, value, explicitEmpty = false) {
   if (!domain) return Promise.resolve();
+  // A panel can reload while waiting for the configuration lock. Let the
+  // worker own queued search writes so closing that view cannot cancel them.
+  if (globalThis.location?.protocol === 'chrome-extension:' && location.pathname === '/panel.html') {
+    return chrome.runtime.sendMessage({ type: 'save-image-query', domain, value, explicitEmpty }).then(result => {
+      if (!result?.ok) throw new Error(result?.error || 'Cannot save image query');
+    });
+  }
   const key = queryStorageKey(domain);
   const operation = queryWrites.then(() => value || explicitEmpty ? saveConfig({ [key]: value }) : removeConfig(key));
   queryWrites = operation.catch(() => {});
