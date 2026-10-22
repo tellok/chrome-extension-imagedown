@@ -46,3 +46,5 @@ Chrome 同步存储总量约100KiB（102400字节），单项8KiB，最多512项
 运行 `npm test` 验证18项同步单元用例，`python tests/settings_sync_browser_test.py` 验证13项真实 Chrome 浏览器场景。浏览器测试仅使用临时配置和测试桥接复制原生 `storage.sync` 记录，覆盖乱序、并发和配额；**不等于 Google 同步服务的真实跨账户端到端验证**，不触碰个人浏览器资料。
 
 依据：[Chrome storage](https://developer.chrome.com/docs/extensions/reference/api/storage)、[Web Locks](https://w3c.github.io/web-locks/)。
+
+网站“增强模式”授权仅在本机保存，不参与配置同步；选择同步版本不会授予、修改或清除本机网站授权，远程规则同样不能开启此功能。

@@ -1,3 +1,5 @@
+import { extractionCall, onExtractionEvent } from './extraction-client.js';
+import { loadEnhanced, saveEnhanced, sourceContext } from './enhanced-mode.js';
 import { saveConfig } from './config-lock.js';
 import { SYNC_IMPORT_KEY, SYNC_STATE_KEY } from './settings-sync-codec.js';
 import { loadEffectivePreferences } from './effective-preferences.js';
@@ -20,6 +22,86 @@ import { createManifestBatch, saveManifest } from './download-manifest.js';
 const $ = id => document.getElementById(id);
 const pinnedId = Number(new URLSearchParams(location.search).get('tab')) || null;
 const state = { tab: null, domain: '', xpath: '', exclusions: '', ignored: new Set(), items: [], selected: new Set(), results: new Map(), scanning: false, busy: false, generation: 0, pendingTab: null, retryBatch: null };
+let enhancedEnabled = false, enhancedStatus = 'idle', incrementalTimer, incrementalRequested = false;
+async function updateEnhanced() {
+  const domain = state.domain;
+  $('enhanced-prompt').hidden = !domain;
+  if (!domain) { enhancedEnabled = false; paintEnhanced(); return; }
+  try { const enabled = await loadEnhanced(domain); if (domain !== state.domain) return; enhancedEnabled = enabled; }
+  catch (error) { enhancedEnabled = false; notice(t('无法读取设置：{0}', error.message), true); }
+  paintEnhanced();
+}
+function paintEnhanced() {
+  $('enhanced-badge').hidden = !enhancedEnabled;
+  const label = enhancedStatus === 'active' ? t('正在增强提取…') : enhancedStatus === 'stopped' ? t('增强提取已停止') : t('增强模式');
+  $('enhanced-badge').textContent = '✦ ' + label;
+  $('enhanced-description').textContent = t(enhancedEnabled ? '增强模式已开启' : '没有找到需要下载的图片？试试');
+  $('enhanced-site').textContent = enhancedEnabled ? state.domain : '';
+  $('enhanced-disable').hidden = !enhancedEnabled;
+  $('enhanced-settings-link').hidden = enhancedEnabled;
+  $('enhanced-note').hidden = enhancedEnabled;
+}
+$('enhanced-settings-link').addEventListener('click', async event => {
+  event.preventDefault();
+  if (!state.tab) return;
+  try {
+    const context = await sourceContext(state.tab.id);
+    const params = new URLSearchParams({ tab: String(context.tabId), document: context.documentId, hostname: context.hostname });
+    await chrome.tabs.create({ url: chrome.runtime.getURL(`settings.html?${params}#enhanced-settings`) });
+  } catch (error) { notice(error.message, true); }
+});
+$('enhanced-disable').addEventListener('click', async () => {
+  if (!state.domain) return;
+  $('enhanced-disable').disabled = true;
+  try { await saveEnhanced(state.domain, false); await updateEnhanced(); }
+  catch (error) { notice(t('保存失败：{0}', error.message), true); }
+  finally { $('enhanced-disable').disabled = false; }
+});
+function requestIncremental() {
+  incrementalRequested = true;
+  if (incrementalTimer) return;
+  incrementalTimer = setTimeout(() => { incrementalTimer = null; void incrementalScan(); }, 500);
+}
+async function incrementalScan() {
+  if (!incrementalRequested || !state.tab || sourceLoading) return;
+  if (state.busy || state.scanning || state.retryBatch) { requestIncremental(); return; }
+  incrementalRequested = false;
+  const generation = state.generation, tabId = state.tab.id;
+  state.scanning = true; selectionUI();
+  try {
+    const result = await scanTab(tabId, state.xpath, state.exclusions);
+    if (generation !== state.generation || sourceLoading) return;
+    const previous = new Map(state.items.map(item => [item.key, item]));
+    for (const item of result.items) {
+      const old = previous.get(item.key);
+      const changed = old && Number.isFinite(old.resourceSignature) && Number.isFinite(item.resourceSignature) && old.resourceSignature !== item.resourceSignature;
+      if (old && !changed && item.origins.some(origin => old.origins.some(before => origin.documentId === before.documentId))) {
+        const keep = { previewStatus: old.previewStatus, preview: old.preview, retryPreview: old.retryPreview, previewMethod: old.previewMethod };
+        Object.assign(old, item, keep);
+        if (item.browserData && old.previewStatus === 'error') { old.previewStatus = ''; old.previewError = ''; }
+      } else if (old) {
+        if (old.retryPreview) URL.revokeObjectURL(old.retryPreview);
+        state.items[state.items.indexOf(old)] = item; thresholdCards.delete(item.key);
+      } else state.items.push(item);
+    }
+    applyIgnored(); render(true);
+  } catch (error) { if (generation === state.generation) notice(error.message, true); }
+  finally { if (generation === state.generation) {
+    state.scanning = false; render(true);
+    if (pendingEffective) void syncEffective(); else if (thresholdsReady) void syncThresholds(true);
+  } }
+}
+onExtractionEvent(event => {
+  if (event.tabId !== state.tab?.id) return;
+  if (event.kind === 'permission') {
+    const wasEnabled = enhancedEnabled;
+    void updateEnhanced().then(() => { if (enhancedEnabled && !wasEnabled) requestIncremental(); });
+  } else if (event.kind === 'changed') requestIncremental();
+});
+chrome.runtime.onMessage.addListener(message => {
+  if (message?.type === 'enhanced-status' && message.tabId === state.tab?.id) { enhancedStatus = message.status; paintEnhanced(); }
+});
+
 const sourceLabels = { img: '页面图片', src: '图片地址', css: 'CSS', pseudo: '伪元素', canvas: 'Canvas', svg: 'SVG', 'svg-image': 'SVG 图片', lazy: '懒加载', srcset: '响应式', poster: '视频封面', resource: '资源', link: '图片链接' };
 let directory = null, directoryReady = false, locationBusy = false;
 let lastDownloadId = null;
@@ -402,6 +484,7 @@ async function refresh(tab = state.tab) {
   const domain = siteDomain(tab.url);
   if (domain !== state.domain) { state.xpath = ''; state.exclusions = ''; $('query').value = ''; queryRevision++; }
   state.domain = domain;
+  enhancedStatus = 'idle'; void updateEnhanced();
   const queryVersion = queryRevision;
   state.ignored = new Set();
   state.scanning = true;
@@ -554,7 +637,7 @@ async function syncEffective(preserveQuery = false) {
   if (!state.tab) return;
   if (state.busy || state.scanning) { pendingEffective = true; return; }
   pendingEffective = false;
-  const request = ++effectiveRequest, generation = state.generation, url = state.tab.url;
+  const request = ++effectiveRequest, generation = state.generation, url = state.tab.url, queryVersion = queryRevision;
   try {
     const next = await loadEffectivePreferences(url);
     if (request !== effectiveRequest || generation !== state.generation || state.tab?.url !== url || sourceLoading) return;
@@ -567,7 +650,7 @@ async function syncEffective(preserveQuery = false) {
       const old = new Map(state.items.map(item => [item.key, item]));
       state.items = result.items.map(item => {
         const previous = old.get(item.key);
-        if (previous && item.origins.some(origin => previous.origins.some(oldOrigin => oldOrigin.documentId === origin.documentId))) {
+        if (previous && !(Number.isFinite(previous.resourceSignature) && Number.isFinite(item.resourceSignature) && previous.resourceSignature !== item.resourceSignature) && item.origins.some(origin => previous.origins.some(oldOrigin => oldOrigin.documentId === origin.documentId))) {
           old.delete(item.key);
           // Preserve original blobs held by WeakMaps keyed on this object, and its ready preview.
           const preview = { previewStatus: previous.previewStatus, preview: previous.preview, retryPreview: previous.retryPreview, previewOrigin: previous.previewOrigin };
@@ -585,7 +668,7 @@ async function syncEffective(preserveQuery = false) {
     }
     state.xpath = next.values.xpath; state.exclusions = next.values.excludedSelectors;
     effectiveState = next; applyThresholdState(next, true); thresholdsReady = true; applyViewFilters(next.values);
-    if (!preserveQuery && document.activeElement !== $('query')) $('query').value = next.values.query;
+    if (!preserveQuery && queryVersion === queryRevision && document.activeElement !== $('query')) $('query').value = next.values.query;
     render(true);
   } catch (error) { notice(t('远程规则读取失败：{0}', error.message), true); }
   finally {
@@ -816,7 +899,7 @@ window.addEventListener('imagetaken-languagechange', event => {
   for (const result of state.results.values()) if (result.error) result.error = translateRendered(result.error, event.previousLanguage);
   titleEditor.localize();
   updateDimensionInputs(true);
-  updateDestinationUI(); render();
+  updateDestinationUI(); paintEnhanced(); render();
 });
 
 try {

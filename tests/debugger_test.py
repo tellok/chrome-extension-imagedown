@@ -54,6 +54,9 @@ try:
         context.on('page',lambda page: page.on('pageerror',lambda error:errors.append(str(error))))
         worker = context.service_workers[0] if context.service_workers else context.wait_for_event('serviceworker')
         extension_id = worker.url.split('/')[2]
+        worker.evaluate("chrome.storage.local.set({'enhanced-mode:v1:127.0.0.1':true})")
+        worker.evaluate("""() => { const native = fetch; globalThis.fetch = (url, options) => String(url).endsWith('/url-only.gif') ? native(url, options) : Promise.reject(new Error('Controlled Fetch unavailable before send')); }""")
+        context.add_init_script("if (location.protocol === 'chrome-extension:') chrome.pageCapture.saveAsMHTML = () => Promise.reject(new Error('Controlled archive unavailable'))")
         source=context.new_page();source.goto(f'http://127.0.0.1:{servers[0].server_port}/page');source.evaluate('window.ready');source.wait_for_load_state('networkidle')
         assert counts['/animated.gif']==1 and counts['/frame.gif']==1,counts
         tab_id=worker.evaluate('async url=>(await chrome.tabs.query({})).find(tab=>tab.url===url).id',source.url)

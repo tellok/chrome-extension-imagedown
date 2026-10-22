@@ -1,3 +1,4 @@
+import { bindEnhancedSettings } from './enhanced-settings.js';
 import { saveConfig } from './config-lock.js';
 import { bindSettingsSync } from './settings-sync-ui.js';
 import { bindRemoteSubscriptions } from './remote-rules-settings.js';
@@ -13,6 +14,7 @@ catch (error) { status.textContent = t('无法读取设置：{0}', error.message
 bindDocument();
 bindRemoteSubscriptions();
 bindSettingsSync();
+bindEnhancedSettings();
 const themeSelect = document.getElementById('theme');
 try { await themeReady; }
 catch (error) { status.textContent = t('无法读取设置：{0}', error.message); }

@@ -13,7 +13,7 @@
   <header><div class="brand"><img class="logo" src="icons/48.png" alt=""><h1>ImageTaken</h1><span class="breadcrumb-separator" aria-hidden="true">/</span><span class="breadcrumb-page">设置</span></div></header>
   <main>
     <h2>设置</h2>
-    <p class="settings-intro">设置自动保存，并应用于所有网站。</p>
+    <p class="settings-intro">设置自动保存；增强模式按网站仅在本机生效。</p>
     <section class="settings-group" aria-labelledby="sync-heading">
       <h3 id="sync-heading">配置同步</h3>
       <label class="setting-row" for="chrome-sync"><span><strong>在此机器同步配置</strong></span><input id="chrome-sync" type="checkbox" role="switch" disabled></label>
@@ -86,6 +86,13 @@
       <div class="subscription-tools"><button id="subscriptions-refresh-all" type="button" disabled>刷新全部</button><span id="subscriptions-status" role="status" aria-live="polite"></span></div>
       <p id="subscriptions-empty" class="settings-note">尚未添加订阅。</p>
       <ul id="subscriptions-list"></ul>
+    </section>
+    <section id="enhanced-settings" class="settings-group" aria-labelledby="enhanced-heading">
+      <h3 id="enhanced-heading">高级功能</h3>
+      <p id="enhanced-host" class="enhanced-host"></p>
+      <label class="setting-row" for="enhanced-mode"><span><strong>为此网站开启增强模式</strong><span class="setting-description">某些图片已在网页显示，但普通方式仍无法取得原文件。增强模式会尝试读取浏览器保留的资源。</span></span><input id="enhanced-mode" type="checkbox" role="switch" aria-describedby="enhanced-help enhanced-feedback" disabled></label>
+      <p id="enhanced-help" class="settings-note">实际读取时，Chrome 可能显示“正在调试此浏览器”等提示，结束后释放连接。仅对当前网站、本机生效，可随时关闭。</p>
+      <p id="enhanced-feedback" class="settings-note" role="status" aria-live="polite"></p>
     </section>
     <p id="settings-status" role="status" aria-live="polite"></p>
   </main>
