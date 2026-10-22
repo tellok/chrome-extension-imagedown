@@ -1,4 +1,6 @@
 import { withConfigLock } from './config-lock.js';
+import { registerSourceHighlights } from './source-highlights-background.js';
+registerSourceHighlights();
 import { registerSettingsSync } from './settings-sync-background.js';
 registerSettingsSync();
 import { registerRemoteRules } from './remote-rules-background.js';

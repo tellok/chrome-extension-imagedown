@@ -29,12 +29,20 @@
     if (roots.has(root)) return;
     roots.add(root);
     const discover = node => {
+      if (globalThis.__imageTakenHighlights?.owns(node)) return;
       if (node.shadowRoot) observe(node.shadowRoot);
       for (const child of node.querySelectorAll?.('*') || []) if (child.shadowRoot) observe(child.shadowRoot);
     };
     const observer = new MutationObserver(changes => {
-      for (const change of changes) for (const node of change.addedNodes) discover(node);
-      notify();
+      let realChange = false;
+      for (const change of changes) {
+        if (globalThis.__imageTakenHighlights?.owns(change.target)) continue;
+        const nodes = [...change.addedNodes, ...change.removedNodes];
+        if (change.type === 'childList' && nodes.length && nodes.every(node => globalThis.__imageTakenHighlights?.owns(node))) continue;
+        realChange = true;
+        for (const node of change.addedNodes) discover(node);
+      }
+      if (realChange) notify();
     });
     observer.observe(root, { childList: true, subtree: true, attributes: true,
       attributeFilter: ['src', 'srcset', 'href', 'data-src', 'data-original', 'data-lazy-src', 'data-url', 'data-srcset', 'class', 'style', 'id', 'alt'] });

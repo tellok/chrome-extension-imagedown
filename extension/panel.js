@@ -11,6 +11,7 @@ import { DEFAULT_THRESHOLDS, normalizeThreshold, siteDomain, ignoreStorageKey, i
 import { saveThresholds, resetThresholds, thresholdChanges, loadIgnored, setIgnored, xpathStorageKey, exclusionsStorageKey, saveQuery, VIEW_FILTERS_KEY, loadViewFilters, saveViewFilters, normalizeViewFilters } from './preferences.js';
 import { loadPreview, previewOrigin } from './previews.js';
 import { bindGallerySelection } from './selection.js';
+import { createSelectionHighlights } from './selection-highlights.js';
 import { bindTitleEditor } from './title-editor.js';
 import { loadDirectory, saveDirectory, chooseDirectory, prepareDestination, directoryChanged } from './destination.js';
 import { createBadgeBinding } from './badge.js';
@@ -20,6 +21,7 @@ import { createManifestBatch, saveManifest } from './download-manifest.js';
 const $ = id => document.getElementById(id);
 const pinnedId = Number(new URLSearchParams(location.search).get('tab')) || null;
 const state = { tab: null, domain: '', xpath: '', exclusions: '', ignored: new Set(), items: [], selected: new Set(), results: new Map(), scanning: false, busy: false, generation: 0, pendingTab: null, retryBatch: null };
+const sourceHighlights = createSelectionHighlights();
 const sourceLabels = { img: '页面图片', src: '图片地址', css: 'CSS', pseudo: '伪元素', canvas: 'Canvas', svg: 'SVG', 'svg-image': 'SVG 图片', lazy: '懒加载', srcset: '响应式', poster: '视频封面', resource: '资源', link: '图片链接' };
 let directory = null, directoryReady = false, locationBusy = false;
 let lastDownloadId = null;
@@ -252,6 +254,7 @@ function selectAllUI(shown = visible()) {
 }
 function selectionUI() {
   for (const item of state.items) if (item.previewStatus === 'error') state.selected.delete(item.key);
+  if (!sourceLoading) sourceHighlights.update(state.tab?.id, state.items.filter(item => state.selected.has(item.key)));
   const shown = visible();
   const previewWork = !!state.retryBatch || state.items.some(item => item.previewPending);
   const selectedShown = selectAllUI(shown);
@@ -393,6 +396,7 @@ async function refresh(tab = state.tab) {
   if (!tab) return;
   if (state.busy) { state.pendingTab = tab; return; }
   const generation = ++state.generation;
+  sourceHighlights.clear();
   thresholdRevision++; thresholdsReady = false; thresholdCards.clear();
   releasePreviews();
   state.retryBatch = null;
@@ -788,11 +792,12 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
 });
 chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
   if (tabId !== state.tab?.id) return;
-  if (change.status === 'loading') { sourceLoading = true; reportBadge(); }
+  if (change.status === 'loading') { sourceLoading = true; sourceHighlights.clear(); reportBadge(); }
   if (change.status === 'complete') void refresh(tab);
 });
 chrome.tabs.onRemoved.addListener(tabId => {
   if (tabId !== state.tab?.id) return;
+  sourceHighlights.clear();
   releasePreviews();
   state.retryBatch = null;
   thresholdRevision++; thresholdsReady = false; thresholdCards.clear();
@@ -802,6 +807,8 @@ chrome.tabs.onRemoved.addListener(tabId => {
   notice(t('原页面已关闭。请切换到另一个网页。')); render();
 });
 window.addEventListener('pagehide', releasePreviews);
+window.addEventListener('pagehide', () => sourceHighlights.clear());
+window.addEventListener('pageshow', () => selectionUI());
 
 let localizationReady = false;
 window.addEventListener('imagetaken-languagechange', event => {
