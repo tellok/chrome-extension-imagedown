@@ -56,3 +56,4 @@
 #sync-feedback[hidden] { display: none; }
 
 .enhanced-host { overflow-wrap: anywhere; font-size: 13px; margin: 0; padding: 12px 16px 0; }
+#enhanced-settings:focus { border-color: var(--focus); outline: 2px solid var(--focus); outline-offset: 2px; }

@@ -183,8 +183,28 @@ def test_EB08(p):
 def test_EB09(p):
     with session(p,'/empty') as s:
         expect(s.panel.locator('#enhanced-settings-link')).to_be_visible()
-        page=settings(s);expect(page.locator('#enhanced-mode')).to_be_focused();assert 'Chrome' in page.locator('#enhanced-help').inner_text()
-        page.locator('#enhanced-mode').check();expect(s.panel.locator('#enhanced-disable')).to_be_visible()
+        page=settings(s);group=page.locator('#enhanced-settings');toggle=page.locator('#enhanced-mode')
+        expect(group).to_be_focused();expect(toggle).not_to_be_focused();expect(toggle).not_to_be_checked()
+        assert 'Chrome' in page.locator('#enhanced-help').inner_text()
+        for theme in ['light','dark']:
+            s.worker.evaluate('(theme)=>chrome.storage.local.set({"settings:theme":theme})',theme)
+            expect(page.locator('html')).to_have_attribute('data-theme',theme)
+            page.set_viewport_size({'width':320,'height':850})
+            group.focus();group.scroll_into_view_if_needed()
+            expect(group).to_be_in_viewport(ratio=1);expect(page.locator('#enhanced-heading')).to_be_in_viewport()
+            expect(group).to_have_css('outline-style','solid');expect(group).to_have_css('outline-width','2px')
+            assert group.evaluate('(el)=>getComputedStyle(el).borderTopColor===getComputedStyle(el).outlineColor')
+            focused_color=group.evaluate('(el)=>getComputedStyle(el).outlineColor')
+            focus_hex=page.evaluate('getComputedStyle(document.documentElement).getPropertyValue("--focus").trim()')
+            assert focused_color=='rgb('+', '.join(str(channel) for channel in bytes.fromhex(focus_hex.removeprefix('#')))+')'
+            before=group.bounding_box()
+            assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+            page.screenshot(path=str(OUTPUT/f'settings-block-{theme}.png'))
+            page.keyboard.press('Tab');expect(toggle).to_be_focused();expect(group).not_to_be_focused()
+            expect(group).to_have_css('outline-style','none');expect(toggle).to_have_css('outline-style','solid')
+            assert group.evaluate('(el)=>getComputedStyle(el).borderTopColor')!=focused_color
+            assert group.bounding_box()==before
+        page.keyboard.press('Space');expect(s.panel.locator('#enhanced-disable')).to_be_visible()
         saved=s.worker.evaluate('chrome.storage.local.get(null)');assert saved['enhanced-mode:v1:127.0.0.1'] is True
         assert 'enhanced-mode:v1:localhost' not in saved
         page.reload();expect(page.locator('#enhanced-mode')).to_be_checked()
@@ -198,10 +218,14 @@ def test_EB10(p):
         failed_read=s.context.new_page()
         failed_read.add_init_script("if(location.protocol==='chrome-extension:'){const get=chrome.storage.local.get.bind(chrome.storage.local);chrome.storage.local.get=key=>String(key).startsWith('enhanced-mode:')?Promise.reject(Error('controlled read failure')):get(key)}")
         failed_read.goto(page.url);expect(failed_read.locator('#enhanced-mode')).to_be_disabled();expect(failed_read.locator('#enhanced-feedback')).to_contain_text('无法读取设置')
+        expect(failed_read.locator('#enhanced-settings')).not_to_be_focused()
+        expect(failed_read.locator('#enhanced-settings')).to_have_css('outline-style','none')
         assert s.worker.evaluate("chrome.storage.local.get('enhanced-mode:v1:127.0.0.1')")=={}
 
         s.source.goto(IMAGE_ORIGIN+'/empty');expect(page.locator('#enhanced-mode')).to_be_disabled()
         fresh=s.context.new_page();fresh.goto(f'chrome-extension://{s.extension_id}/settings.html');expect(fresh.locator('#enhanced-mode')).to_be_disabled()
+        expect(fresh.locator('#enhanced-settings')).not_to_be_focused()
+        expect(fresh.locator('#enhanced-settings')).to_have_css('outline-style','none')
         assert s.worker.evaluate("chrome.storage.local.get('enhanced-mode:v1:localhost')")=={}
 
 def test_EB11(p):

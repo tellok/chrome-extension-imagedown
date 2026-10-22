@@ -16,7 +16,12 @@ export function bindEnhancedSettings() {
       try { toggle.checked = await loadEnhanced(context.hostname); }
       catch (error) { status.textContent = t('无法读取设置：{0}', error.message); return; }
       available = true; toggle.disabled = false; status.textContent = '';
-      if (location.hash === '#enhanced-settings') { toggle.scrollIntoView({ block: 'center' }); toggle.focus(); }
+      if (location.hash === '#enhanced-settings') {
+        const group = document.getElementById('enhanced-settings');
+        group.tabIndex = -1;
+        group.scrollIntoView({ block: 'center' });
+        group.focus({ preventScroll: true });
+      }
     } catch { unavailable(); }
   }
   toggle.addEventListener('change', async () => {
