@@ -1,6 +1,8 @@
 import { registerExtraction } from './extraction-background.js';
 registerExtraction();
 import { withConfigLock } from './config-lock.js';
+import { registerSourceHighlights } from './source-highlights-background.js';
+registerSourceHighlights();
 import { saveQuery } from './preferences.js';
 import { siteDomain } from './metadata.js';
 chrome.runtime.onMessage.addListener((message, sender, respond) => {

@@ -55,6 +55,35 @@
     return data;
   }
 
+  // These references stay in the owning isolated world, never in scan messages.
+  function occurrence(element, source, url) {
+    const node = element;
+    const target = node.matches('picture > source') ? [...node.parentElement.children].find(child => child instanceof HTMLImageElement) : node;
+    if (!target) return null;
+    const svgMarkup = source === 'svg' ? node.outerHTML : '';
+    return { element: target, valid: () => {
+      if (!node.isConnected || !target.isConnected || node.ownerDocument !== document) return false;
+      if (source === 'canvas') return node.width > 0 && node.height > 0;
+      if (source === 'svg') return node.outerHTML === svgMarkup;
+      if (source === 'poster') return absolute(node.poster) === url;
+      if (source === 'link') return absolute(node.href) === url;
+      if (source === 'svg-image') return absolute(node.getAttribute('href') || node.getAttribute('xlink:href')) === url;
+      if (source === 'css' || source === 'pseudo') {
+        return (source === 'css' ? [null] : ['::before', '::after']).some(pseudo => {
+          const style = getComputedStyle(node, pseudo);
+          if (pseudo && ['none', 'normal'].includes(style.content)) return false;
+          return ['backgroundImage', 'listStyleImage', 'maskImage', 'borderImageSource', 'content'].some(property =>
+            [...style[property].matchAll(/url\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)/g)]
+              .some(match => absolute(match[1] || match[2] || match[3]) === url));
+        });
+      }
+      if (node.matches('picture > source') && node.parentElement !== target.parentElement) return false;
+      const values = [node.currentSrc, node.getAttribute('src'), ...['data-src', 'data-original', 'data-lazy-src', 'data-url'].map(key => node.getAttribute(key)),
+        ...['srcset', 'data-srcset'].flatMap(key => srcsetURLs(node.getAttribute(key) || ''))];
+      return values.some(value => absolute(value) === url);
+    } };
+  }
+
   function scan(xpath = '', excludedSelectors = '', passive = false) {
     const selectors = excludedSelectors.split('\n').map(value => value.trim()).filter(Boolean);
     try { for (const selector of selectors) document.querySelector(selector); }
@@ -92,6 +121,10 @@
       if (!url) return;
       const previous = byURL.get(url);
       if (previous) {
+        if (!passive && element && !previous.occurrences.some(entry => entry.node === element && entry.source === source)) {
+          const match = occurrence(element, source, url);
+          if (match) previous.occurrences.push({ ...match, node: element, source });
+        }
         if (!previous.sources.includes(source)) previous.sources.push(source);
         if (extra.loaded && !previous.loaded) Object.assign(previous, {
           loaded: true, element, width: extra.width || 0, height: extra.height || 0, preview: extra.preview || '',
@@ -107,6 +140,7 @@
       const rect = element?.getBoundingClientRect();
       const record = {
         id, url, sources: [source], element,
+        occurrences: [],
         width: extra.width || 0, height: extra.height || 0,
         loaded: !!extra.loaded, preview: extra.preview || '', previewIssue: extra.previewIssue || '',
         bytes: extra.snapshot ? Math.max(0, Math.floor(extra.snapshot.split(',')[1].length * 3 / 4) - (extra.snapshot.endsWith('==') ? 2 : extra.snapshot.endsWith('=') ? 1 : 0)) : null,
@@ -120,6 +154,10 @@
         collectedAt,
         sourceReference: element ? `${element.localName}${element.id ? `#${element.id}` : ''}` : source,
       };
+      if (!passive && element) {
+        const match = occurrence(element, source, url);
+        if (match) record.occurrences.push({ ...match, node: element, source });
+      }
       byURL.set(url, record);
       scanRecords.set(id, record);
       return record;
@@ -128,7 +166,7 @@
       for (const el of [...(root.nodeType === Node.ELEMENT_NODE ? [root] : []), ...root.querySelectorAll('*')]) {
         if (visited.has(el)) continue;
         visited.add(el);
-        if (excluded(el)) continue;
+        if (globalThis.__imageTakenHighlights?.owns(el) || excluded(el)) continue;
         // A picture's sources belong to its img; excluded images must not return via srcset.
         if (el.matches('picture > source') && [...el.parentElement.children].some(child => child instanceof HTMLImageElement && excluded(child))) continue;
         if (el instanceof HTMLImageElement) {
@@ -211,7 +249,7 @@
     }
     return {
       title: document.title, url: location.href, truncated, matchedRoots,
-      items: [...scanRecords.values()].map(({ element, snapshot, ...item }) => item),
+      items: [...scanRecords.values()].map(({ element, snapshot, occurrences, ...item }) => item),
     };
   }
 
@@ -292,6 +330,7 @@
     return { url: actual, signature: performance.getEntriesByName(record.url).at(-1)?.responseEnd || 0, ready: element instanceof HTMLImageElement ? element.complete && element.naturalWidth > 0 && actual === record.url : completed };
 
   };
+  const targets = ids => ids.flatMap(id => (records.get(id) || history.find(generation => generation.has(id))?.get(id))?.occurrences || []);
   function registerResources(urls) {
     const output = [];
     for (const url of urls.slice(0, MAX_ITEMS)) {
@@ -306,5 +345,5 @@
     }
     return output;
   }
-  globalThis.__imageTaken = { scan, read, resource, registerResources };
+  globalThis.__imageTaken = { scan, read, resource, targets, registerResources };
 })();
