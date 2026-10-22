@@ -233,6 +233,7 @@
     for (const entry of performance.getEntriesByType('resource')) {
       if (entry.initiatorType === 'img' || /\.(avif|png|jpe?g|gif|webp|svg|bmp|ico)(?:[?#]|$)/i.test(entry.name)) {
         const record = xpath || selectors.length ? byURL.get(entry.name) : add(entry.name, 'resource');
+        if (record) record.resourceSignature = entry.responseEnd;
         const bodySize = entry.decodedBodySize || entry.encodedBodySize;
         if (record && bodySize > 0 && !(entry.responseStatus >= 400)) {
           record.bytes = bodySize;
@@ -283,7 +284,7 @@
       // animated GIFs and other source formats are not replaced with PNGs.
       if (preview && element instanceof HTMLImageElement && element.complete && element.naturalWidth &&
           (element.currentSrc || element.src) === url) {
-        try { return { dataUrl: pixels(element, true), method: 'decoded-pixels', mime: 'image/png' }; }
+        try { return { dataUrl: pixels(element, preview !== 'full'), method: 'decoded-pixels', mime: 'image/png' }; }
         catch (error) { errors.push(error.message); }
       }
       const fetchImage = async (cache) => {
@@ -307,14 +308,12 @@
         } finally { await reader.cancel().catch(() => {}); }
         return new Blob(chunks, { type: response.headers.get('content-type')?.split(';')[0] || 'application/octet-stream' });
       };
-      if ((!refresh || preview) && new URL(url).origin === location.origin && !url.startsWith('blob:')) {
-        try { return await asData(await fetchImage('only-if-cached'), 'page-cache'); }
-        catch (error) { errors.push(error.message); }
-      }
+      // HTTP requests are coordinated in the background with Referer isolation.
+      if (/^https?:/.test(url)) throw new Error('完整原图需要后台提取');
       // Blob URLs are readable only in their owning page/storage partition.
       try { return await asData(await fetchImage(refresh ? 'reload' : 'force-cache'), url.startsWith('blob:') ? 'page-blob' : 'page-fetch'); }
       catch (error) { errors.push(error.message); }
-      if (element instanceof HTMLImageElement && element.complete && element.naturalWidth &&
+      if (preview && element instanceof HTMLImageElement && element.complete && element.naturalWidth &&
           (element.currentSrc || element.src) === url) {
         try { return { dataUrl: pixels(element), method: 'decoded-pixels', mime: 'image/png' }; }
         catch (error) { errors.push(error.message); }
@@ -324,8 +323,27 @@
   }
   const resource = id => {
     const record = records.get(id) || history.find(generation => generation.has(id))?.get(id);
-    return record ? { url: record.url } : null;
+    if (!record) return null;
+    const element = record.element;
+    const actual = element instanceof HTMLImageElement ? (element.currentSrc || element.src) : record.url;
+    const completed = performance.getEntriesByName(record.url).some(entry => entry.responseEnd > 0 && !(entry.responseStatus >= 400));
+    return { url: actual, signature: performance.getEntriesByName(record.url).at(-1)?.responseEnd || 0, ready: element instanceof HTMLImageElement ? element.complete && element.naturalWidth > 0 && actual === record.url : completed };
+
   };
   const targets = ids => ids.flatMap(id => (records.get(id) || history.find(generation => generation.has(id))?.get(id))?.occurrences || []);
-  globalThis.__imageTaken = { scan, read, resource, targets };
+  function registerResources(urls) {
+    const output = [];
+    for (const url of urls.slice(0, MAX_ITEMS)) {
+      if (!absolute(url)) continue;
+      const existing = [...records.values()].find(record => record.url === url);
+      if (existing) { output.push({ id: existing.id, url }); continue; }
+      if (records.size >= MAX_ITEMS) break;
+      const id = `${revision}:browser:${records.size}`;
+      const record = { id, url, sources: ['resource'], loaded: true, width: 0, height: 0, preview: '', kind: '',
+        sourcePageUrl: location.href, originalTitle: '', collectedAt: new Date().toISOString(), sourceReference: 'browser-resource' };
+      records.set(id, record); output.push(record);
+    }
+    return output;
+  }
+  globalThis.__imageTaken = { scan, read, resource, targets, registerResources };
 })();

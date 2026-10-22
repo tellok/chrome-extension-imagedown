@@ -12,7 +12,9 @@
     "storage",
     "debugger",
     "alarms",
-    "offscreen"
+    "offscreen",
+    "pageCapture",
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
     "http://*/*",

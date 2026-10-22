@@ -449,7 +449,9 @@ def test_preview_retries(context, worker, extension_id, origin, output):
     never = card('retry-never.png')
     never.locator('.retry-preview').click()
     expect(never.locator('.retry-preview')).to_be_enabled(timeout=20000)
-    expect(never.locator('.retry-preview')).to_have_attribute('title', '页面：HTTP 403；扩展：HTTP 403')
+    assert 'HTTP 403' in never.locator('.retry-preview').get_attribute('title')
+    assert 'Fetch' in never.locator('.retry-preview').get_attribute('title')
+    assert 'Referer' in never.locator('.retry-preview').get_attribute('title')
     expect(never.locator('img')).to_have_class('failed')
     expect(never.locator('.preview-fallback')).to_be_visible()
     expect(never.locator('.preview-origin')).to_be_hidden()
@@ -1006,7 +1008,7 @@ def main():
             boundary = panel.locator('.card').filter(has=panel.locator('.image-url', has_text='boundary.png'))
             expect(boundary.locator('.image-size')).to_have_text('2.0 KiB')
             expect(boundary.locator('.preview-origin')).to_be_visible()
-            expect(boundary.locator('.preview-origin')).to_have_text('浏览器资源')
+            expect(boundary.locator('.preview-origin')).to_have_text('归档资源')
             expect(panel.locator('.card .image-url').filter(has_text='missing.png')).to_have_count(1)
             panel.locator('#filters').evaluate('(el) => el.open = true')
             panel.locator('#min-width').fill('321')
@@ -1056,7 +1058,7 @@ def main():
               URL.revokeObjectURL(preview.url);
               return preview;
             }""", {'tabId':tab_id,'item':urls[origin + '/once.png']})
-            assert preview['method'] == 'debugger-resource' and preview['bytes'] > 0, preview
+            assert preview['method'] == 'mhtml-resource' and preview['bytes'] > 0, preview
             assert (preview['width'], preview['height']) == (640, 420), preview
             assert COUNTS.get('/once.png', 0) == before_preview, 'preview retry requested an already displayed image'
 
@@ -1069,29 +1071,31 @@ def main():
                 }''', {'tabId': tab_id, 'item': item})
 
             normal = read(urls[origin + '/cached.png'])
-            assert normal['method'] == 'debugger-resource', {k:v for k,v in normal.items() if k != 'data'}
+            assert normal['method'] == 'mhtml-resource', {k:v for k,v in normal.items() if k != 'data'}
             assert bytes(normal['data']) == PNG, 'cache bytes must exactly match original'
             expired = read(urls[origin + '/once.png'])
-            assert expired['method'] == 'debugger-resource', expired
+            assert expired['method'] == 'mhtml-resource', expired
             assert Image.open(io.BytesIO(bytes(expired['data']))).size == (640, 420)
             auth = read(urls[origin + '/auth.png'])
             assert bytes(auth['data']) == PNG, 'authenticated image failed'
             cross = read(urls[other + '/cross.png'])
-            assert cross['method'] == 'debugger-resource', cross
+            assert cross['method'] == 'mhtml-resource', cross
             assert bytes(cross['data']) == PNG
             blob_items = [item for item in items if item['url'].startswith('blob:')]
             assert len(blob_items) == 2
-            assert {read(item)['method'] for item in blob_items} == {'page-blob', 'decoded-pixels'}
+            assert {read(item).get('method') for item in blob_items} == {'page-blob', None}
+            assert any('error' in read(item) for item in blob_items)
             canvases = [item for item in items if item['kind'] == 'canvas']
             assert read(canvases[0])['method'] == 'canvas'
             assert 'error' in read(canvases[1]), 'tainted canvas must fail explicitly'
             denied = read(urls[other + '/denied.png'])
-            assert denied['method'] == 'debugger-resource' and bytes(denied['data']) == PNG, 'retained protected image must reuse original browser bytes'
+            assert denied['method'] == 'mhtml-resource' and bytes(denied['data']) == PNG, 'retained protected image must reuse original browser bytes'
             assert 'error' in read(urls[origin + '/missing.png'])
-            assert read(urls[other + '/frame-only.png'])['method'] == 'debugger-resource'
+            assert read(urls[other + '/frame-only.png'])['method'] == 'mhtml-resource'
             # A second open view must not invalidate the first view's Blob reads.
             panel.evaluate('''async tabId => (await import('./api.js')).scanTab(tabId)''', tab_id)
-            assert {read(item)['method'] for item in blob_items} == {'page-blob', 'decoded-pixels'}
+            assert {read(item).get('method') for item in blob_items} == {'page-blob', None}
+            assert any('error' in read(item) for item in blob_items)
 
             # Conversions use real browser decoders/encoders and retain dimensions.
             for fmt, mime in [('png', 'image/png'), ('jpg', 'image/jpeg'), ('webp', 'image/webp')]:

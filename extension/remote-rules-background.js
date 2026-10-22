@@ -1,8 +1,10 @@
+import { imageRequests } from './extraction-background.js';
 import { createSubscriptionManager, RULES_ALARM } from './remote-subscriptions.js';
 import { callRulesHost } from './rules-host.js';
 import { effectivePreferences } from './effective-preferences.js';
 export const subscriptions = createSubscriptionManager({
   storage: chrome.storage.local, alarms: chrome.alarms,
+  fetcher: (url, options) => imageRequests.subscription(url, options),
   validateSelectors: document => callRulesHost({ operation: 'validate', document }),
   match: (entries, url) => callRulesHost({ operation: 'match', entries, url }),
 });

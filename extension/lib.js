@@ -55,6 +55,9 @@ export function filterImages(items, filters, sizeOf = item => ({ bytes: Number.i
 }
 
 export const METHOD_LABELS = {
+  'mhtml-resource': '浏览器资源 · 原文件',
+  'page-referer-fetch': '网页来源请求 · 原文件',
+  'image-referer-fetch': '图片来源请求 · 原文件',
   'debugger-resource': '浏览器资源 · 原文件',
   'page-cache': '页面缓存 · 原文件',
   'page-fetch': '页面读取 · 原文件',

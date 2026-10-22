@@ -1,6 +1,19 @@
+import { registerExtraction } from './extraction-background.js';
+registerExtraction();
 import { withConfigLock } from './config-lock.js';
 import { registerSourceHighlights } from './source-highlights-background.js';
 registerSourceHighlights();
+import { saveQuery } from './preferences.js';
+import { siteDomain } from './metadata.js';
+chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  if (message?.type !== 'save-image-query' || sender.id !== chrome.runtime.id || sender.url?.split('?')[0] !== chrome.runtime.getURL('panel.html')) return;
+  const { domain, value, explicitEmpty } = message;
+  if (typeof domain !== 'string' || !domain || siteDomain(`https://${domain}`) !== domain || typeof value !== 'string' || typeof explicitEmpty !== 'boolean') {
+    respond({ ok: false, error: 'Invalid image query' }); return;
+  }
+  saveQuery(domain, value, explicitEmpty).then(() => respond({ ok: true }), error => respond({ ok: false, error: error.message }));
+  return true;
+});
 import { registerSettingsSync } from './settings-sync-background.js';
 registerSettingsSync();
 import { registerRemoteRules } from './remote-rules-background.js';

@@ -27,7 +27,11 @@ test('retained original bytes remain local even when the source page is unavaila
 test('concurrent and subsequent reads reuse the original downloaded blob', async () => {
   const nativeFetch = globalThis.fetch;
   let requests = 0;
-  await withChrome({ runtime: { sendMessage: async () => ({ items: [] }) } }, async () => {
+  await withChrome({ runtime: { connect: () => {
+    const listeners = [];
+    return { onMessage: { addListener: listener => listeners.push(listener) }, onDisconnect: { addListener() {} },
+      postMessage: message => { requests++; queueMicrotask(() => listeners.forEach(listener => listener({ id: message.id, result: { dataUrl: GIF, method: 'extension-fetch' } }))); }, disconnect() {} };
+  } } }, async () => {
     globalThis.fetch = async (url, options) => {
       if (url.startsWith('data:')) return nativeFetch(url, options);
       requests++;

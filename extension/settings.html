@@ -13,13 +13,12 @@
   <header><div class="brand"><img class="logo" src="icons/48.png" alt=""><h1>ImageTaken</h1><span class="breadcrumb-separator" aria-hidden="true">/</span><span class="breadcrumb-page">设置</span></div></header>
   <main>
     <h2>设置</h2>
-    <p class="settings-intro">设置自动保存，并应用于所有网站。</p>
+    <p class="settings-intro">设置自动保存；增强模式按网站仅在本机生效。</p>
     <section class="settings-group" aria-labelledby="sync-heading">
       <h3 id="sync-heading">配置同步</h3>
-      <label class="setting-row" for="chrome-sync"><span><strong>在此机器同步配置</strong><span class="setting-description">默认开启。基础设置、网站规则、搜索词、忽略记录和订阅地址通过 Chrome 同步；下载目录授权、图片和规则缓存仅留本机。</span></span><input id="chrome-sync" type="checkbox" role="switch" disabled></label>
-      <p class="settings-note">跨设备需要相同扩展标识、同一 Chrome 账户并开启浏览器同步。写入同步存储不代表其他设备已收到。</p>
-      <div class="sync-tools"><span id="sync-status" role="status" aria-live="polite"></span><button id="sync-retry" type="button" disabled>重新检查</button></div>
-      <div id="sync-conflict" hidden><button id="sync-use-local" type="button">使用本机设置</button><div id="sync-candidates"></div><details id="sync-diff"><summary>查看差异</summary><div id="sync-differences"></div></details></div>
+      <label class="setting-row" for="chrome-sync"><span><strong>在此机器同步配置</strong></span><input id="chrome-sync" type="checkbox" role="switch" disabled></label>
+      <div id="sync-feedback" class="sync-tools" hidden><span id="sync-status" role="status" aria-live="polite"></span><button id="sync-retry" type="button" disabled>重试</button></div>
+      <div id="sync-conflict" hidden><p id="sync-conflict-message" role="status" aria-live="polite">本机与同步的配置不一致，请选择要使用的设置。</p><button id="sync-use-local" type="button" disabled>使用本机设置</button><div id="sync-candidates"></div><details id="sync-diff"><summary>查看差异</summary><div id="sync-differences"></div></details></div>
     </section>
     <section class="settings-group" aria-labelledby="appearance-settings-heading">
       <h3 id="appearance-settings-heading">外观</h3>
@@ -87,6 +86,13 @@
       <div class="subscription-tools"><button id="subscriptions-refresh-all" type="button" disabled>刷新全部</button><span id="subscriptions-status" role="status" aria-live="polite"></span></div>
       <p id="subscriptions-empty" class="settings-note">尚未添加订阅。</p>
       <ul id="subscriptions-list"></ul>
+    </section>
+    <section id="enhanced-settings" class="settings-group" aria-labelledby="enhanced-heading">
+      <h3 id="enhanced-heading">高级功能</h3>
+      <p id="enhanced-host" class="enhanced-host"></p>
+      <label class="setting-row" for="enhanced-mode"><span><strong>为此网站开启增强模式</strong><span class="setting-description">某些图片已在网页显示，但普通方式仍无法取得原文件。增强模式会尝试读取浏览器保留的资源。</span></span><input id="enhanced-mode" type="checkbox" role="switch" aria-describedby="enhanced-help enhanced-feedback" disabled></label>
+      <p id="enhanced-help" class="settings-note">实际读取时，Chrome 可能显示“正在调试此浏览器”等提示，结束后释放连接。仅对当前网站、本机生效，可随时关闭。</p>
+      <p id="enhanced-feedback" class="settings-note" role="status" aria-live="polite"></p>
     </section>
     <p id="settings-status" role="status" aria-live="polite"></p>
   </main>

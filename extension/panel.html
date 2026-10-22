@@ -44,7 +44,7 @@
       <div class="destination-row"><span class="destination-label">保存到</span><span id="download-location" title="浏览器默认下载位置">浏览器默认下载位置</span><button id="choose-location" class="text-button" disabled>选择目录</button><button id="reset-location" class="text-button" hidden>恢复默认</button></div>
     </section>
     <p class="strategy">收集、筛选并保存页面中的图片。<br>优先读取页面资源<span>·</span>保留加载失败的图片</p>
-    <label class="search"><svg class="ui-icon" aria-hidden="true"><use href="#icon-search"/></svg><input id="query" type="search" placeholder="搜索图片地址或描述" aria-label="搜索图片地址或描述"><kbd>⌘ K</kbd></label>
+    <label class="search"><svg class="ui-icon" aria-hidden="true"><use href="#icon-search"/></svg><input id="query" type="search" autocomplete="off" placeholder="搜索图片地址或描述" aria-label="搜索图片地址或描述"><kbd>⌘ K</kbd></label>
     <details id="filters"><summary><svg class="ui-icon" aria-hidden="true"><use href="#icon-filter"/></svg>筛选图片 <span id="filter-count"></span><span class="chevron"><svg class="ui-icon" aria-hidden="true"><use href="#icon-chevron"/></svg></span></summary>
       <div class="filter-fields">
         <div class="dimension-filter"><label for="min-width">最小宽度</label><div class="dimension-control"><div class="dimension-value"><input id="min-width" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" spellcheck="false" disabled><span aria-hidden="true">px</span></div><button id="reset-min-width" class="threshold-reset" type="button" title="还原宽度全局默认" aria-label="还原宽度全局默认" disabled><svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"/></svg></button></div></div>
@@ -76,7 +76,13 @@
     <div id="notice" role="status" hidden></div>
     <div id="empty" class="empty"><img class="empty-illustration" src="assets/finding-pictures.png" alt="" aria-hidden="true"><h3>还没有图片</h3><p>打开一个网页，再点击右上角重新扫描。</p></div>
     <p class="hint">点击卡片切换选择，拖动鼠标框选追加；按住 Ctrl / ⌘ 框选反选，Esc 取消本次框选。</p>
+    <p id="enhanced-badge" class="enhanced-badge" role="status" hidden></p>
     <section id="gallery" class="gallery" aria-label="图片列表"></section>
+    <section id="enhanced-prompt" class="enhanced-prompt" hidden>
+      <span id="enhanced-description"></span> <a id="enhanced-settings-link" href="#">增强模式</a>
+      <span id="enhanced-site"></span><button id="enhanced-disable" class="text-button" hidden>关闭增强模式</button>
+      <small id="enhanced-note">仅对当前网站开启</small>
+    </section>
     <section id="active-site-rules" class="active-site-rules" aria-labelledby="active-site-rules-title">
       <h3 id="active-site-rules-title">当前网站过滤规则</h3>
       <p id="active-remote-rule" class="hint rule-provenance" hidden></p>
