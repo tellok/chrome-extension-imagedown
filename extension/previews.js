@@ -21,8 +21,8 @@ export function previewOrigin(item) {
 
 // Reuse page pixels/cache first. Only bypass the cache if reuse itself failed,
 // so a cached HTTP failure can still be recovered without changing signed URLs.
-export async function loadPreview(tabId, item) {
-  const result = await readImage(tabId, item, { refresh: true, preview: true });
+export async function loadPreview(tabId, item, { refresh = true } = {}) {
+  const result = await readImage(tabId, item, { refresh, preview: true });
   const { blob, method } = result;
   const url = URL.createObjectURL(blob);
   const image = new Image();

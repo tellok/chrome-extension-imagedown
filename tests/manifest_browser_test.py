@@ -182,10 +182,13 @@ def test_manifest_setting_persistence_and_sync(p, origin):
         assert a.evaluate('document.documentElement.scrollWidth<=innerWidth')
         a.screenshot(path=str(OUTPUT / 'settings-default-off.png'), full_page=True)
         # Errors are isolated to this new setting; existing controls keep their native paths.
-        a.evaluate('''() => {const native=chrome.storage.local.set;chrome.storage.local.set=async values=>{if(Object.hasOwn(values,'settings:download-manifest'))throw new Error('controlled storage failure');return native.call(chrome.storage.local,values)};}''')
-        a.locator('#download-manifest').click()
-        expect(a.locator('#settings-status')).to_contain_text('保存失败')
-        expect(a.locator('#download-manifest')).not_to_be_checked()
+        s.worker.evaluate('''() => {globalThis.manifestNativeSet=chrome.storage.local.set;chrome.storage.local.set=async values=>{if(Object.hasOwn(values,'settings:download-manifest'))throw new Error('controlled storage failure');return manifestNativeSet.call(chrome.storage.local,values)};}''')
+        try:
+            a.locator('#download-manifest').click()
+            expect(a.locator('#settings-status')).to_contain_text('保存失败')
+            expect(a.locator('#download-manifest')).not_to_be_checked()
+        finally:
+            s.worker.evaluate('()=>{chrome.storage.local.set=manifestNativeSet;delete globalThis.manifestNativeSet}')
         a.add_init_script("const native=chrome.storage.local.get;chrome.storage.local.get=async key=>{if(key==='settings:download-manifest')throw new Error('controlled read failure');return native.call(chrome.storage.local,key)}")
         a.reload()
         expect(a.locator('#settings-status')).to_contain_text('无法读取设置')

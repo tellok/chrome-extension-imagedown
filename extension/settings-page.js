@@ -5,7 +5,7 @@ import { bindRemoteSubscriptions } from './remote-rules-settings.js';
 import { GLOBAL_DIMENSION_KEYS, loadGlobalDimensions, saveGlobalDimensions } from './preferences.js';
 import { t } from './i18n.js';
 import { initI18n, bindDocument, localizeDocument, LANGUAGE_KEY, languagePreference, translateRendered } from './i18n.js';
-import { TITLE_CLEANUP_KEY, loadTitleCleanup, READY_FIRST_KEY, loadReadyFirst, DOWNLOAD_MANIFEST_KEY, loadDownloadManifest } from './settings.js';
+import { TITLE_CLEANUP_KEY, loadTitleCleanup, saveSharedSetting, READY_FIRST_KEY, loadReadyFirst, DOWNLOAD_MANIFEST_KEY, loadDownloadManifest } from './settings.js';
 import { THEME_KEY, themeReady, themePreference } from './theme.js';
 
 const status = document.getElementById('settings-status');
@@ -63,7 +63,7 @@ await Promise.all(controls.map(async ({ toggle, key, load }) => {
     const value = toggle.checked;
     toggle.disabled = true;
     try {
-      await saveConfig({ [key]: value });
+      await saveSharedSetting(key, value);
       status.textContent = t('已保存');
     } catch (error) {
       toggle.checked = !value;

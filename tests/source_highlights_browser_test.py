@@ -182,17 +182,21 @@ def test_HB02_multiple_select_all_and_deselect(p, origin):
 def test_HB03_drag_toggle_and_escape_restore(p, origin):
     with session(p, origin) as s:
         s.panel.locator('#query').fill('.png')
-        cards=s.panel.locator('.card'); expect(cards.nth(2)).to_be_visible()
+        cards=s.panel.locator('.card'); expect(cards).to_have_count(11)
+        s.panel.bring_to_front()
         boxes=[cards.nth(i).bounding_box() for i in range(3)]
         a,b,c=boxes
         start=(a['x']+35,a['y']+55); end=(c['x']+c['width']/2,c['y']+95)
         s.panel.mouse.move(*start);s.panel.mouse.down();s.panel.mouse.move(*end,steps=8)
         expect(s.panel.locator('.card.selected')).to_have_count(3)
         s.panel.keyboard.press('Escape');s.panel.mouse.up();s.wait_boxes(0)
+        s.panel.bring_to_front()
+        a,b,c=[cards.nth(i).bounding_box() for i in range(3)]
+        start=(a['x']+35,a['y']+55); end=(c['x']+c['width']/2,c['y']+95)
         s.panel.mouse.move(*start);s.panel.mouse.down();s.panel.mouse.move(*end,steps=8);s.panel.mouse.up()
         expect(s.panel.locator('.card.selected')).to_have_count(3)
         s.source.bring_to_front(); assert s.snapshot()['rectangles']
-        s.panel.bring_to_front();s.panel.keyboard.down('Control')
+        s.panel.bring_to_front();b=cards.nth(1).bounding_box();s.panel.keyboard.down('Control')
         s.panel.mouse.move(b['x']+35,b['y']+50);s.panel.mouse.down();s.panel.mouse.move(b['x']+90,b['y']+95,steps=6);s.panel.mouse.up();s.panel.keyboard.up('Control')
         expect(s.panel.locator('.card.selected')).to_have_count(2)
         s.panel.locator('#select-all').check();s.panel.locator('#select-all').uncheck();s.wait_boxes(0)
@@ -213,19 +217,27 @@ def test_HB04_hidden_selection_and_automatic_deselection(p, origin):
 
 def test_HB05_duplicate_urls_and_shared_elements(p, origin):
     with session(p, origin) as s:
-        before=next(item for item in s.scan() if item['url'].endswith('/a.png'))
+        before=next(item for item in s.scan() if item['url']==origin+'/a.png')
         s.select('/a.png');s.wait_boxes(3)
         assert before['originalTitle']=='alpha original'
         s.select('/responsive.png');s.select('/alternate.png');s.wait_boxes(4)
         s.select('/responsive.png',False);s.wait_boxes(4)
         s.select('/alternate.png',False);s.wait_boxes(3)
-        assert len([item for item in s.scan() if item['url'].endswith('/a.png')])==1
+        items=s.scan()
+        assert len([item for item in items if item['url']==origin+'/a.png'])==1
+        frame_url=s.source.frames[1].url.replace('/frame','/a.png')
+        assert frame_url!=origin+'/a.png'
+        assert len([item for item in items if item['url']==frame_url])==1
         assert before['sourceReference']=='img#alpha'
 
 
 def test_HB06_open_shadow_and_cross_origin_iframe(p, origin):
     with session(p, origin) as s:
-        items=s.scan();item=next(item for item in items if item['url'].endswith('/a.png'))
+        frame_page=s.source.frames[1]
+        frame_page.locator('#frame-image').evaluate('(image,url)=>image.src=url',origin+'/a.png')
+        frame_page.wait_for_function('()=>document.querySelector("#frame-image").complete&&document.querySelector("#frame-image").naturalWidth>0')
+        s.panel.locator('#refresh').click();expect(s.panel.locator('#refresh')).to_be_enabled()
+        items=s.scan();item=next(item for item in items if item['url']==origin+'/a.png')
         top=s.worker.evaluate('''async id=>(await chrome.scripting.executeScript({target:{tabId:id,frameIds:[0]},func:()=>true}))[0].documentId''',s.tab_id)
         frame=next(o['documentId'] for o in item['origins'] if o['documentId']!=top)
         s.select('/a.png');s.wait_boxes(3);s.wait_boxes(1,frame)

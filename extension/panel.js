@@ -384,6 +384,43 @@ function updateCard(card, item) {
   previewUI(card, item);
 }
 
+// Resolve remote previews through the same original-file task as downloads.
+// Keep lazy images dormant until visible (or explicitly switched to eager).
+const automaticPreviews = new WeakMap();
+const pendingPreviewImages = new Map();
+const previewObserver = new IntersectionObserver(entries => {
+  for (const entry of entries) if (entry.isIntersecting) pendingPreviewImages.get(entry.target)?.();
+}, { rootMargin: '300px' });
+const previewLoadingObserver = new MutationObserver(records => {
+  for (const record of records) if (record.target.loading === 'eager') pendingPreviewImages.get(record.target)?.();
+});
+function queueRemotePreview(image, item, generation) {
+  const tabId = state.tab?.id;
+  if (!Number.isInteger(tabId)) return;
+  const start = () => {
+    pendingPreviewImages.delete(image); previewObserver.unobserve(image);
+    let task = automaticPreviews.get(item);
+    if (!task) {
+      task = loadPreview(tabId, item, { refresh: false });
+      automaticPreviews.set(item, task);
+    }
+    void task.then(preview => {
+      if (generation !== state.generation) { URL.revokeObjectURL(preview.url); return; }
+      Object.assign(item, { retryPreview: preview.url, previewMethod: preview.method,
+        width: preview.width, height: preview.height, previewStatus: 'ready', previewError: '' });
+      if (preview.method !== 'decoded-pixels') Object.assign(item, { bytes: preview.bytes, mime: preview.mime });
+      if (image.isConnected) { image.src = preview.url; scheduleRender(); }
+    }, error => {
+      if (generation !== state.generation) return;
+      item.previewStatus = 'error'; item.previewError = error.message;
+      if (image.isConnected) image.dispatchEvent(new Event('error'));
+    });
+  };
+  pendingPreviewImages.set(image, start);
+  previewLoadingObserver.observe(image, { attributes: true, attributeFilter: ['loading'] });
+  if (image.loading === 'eager') queueMicrotask(start); else previewObserver.observe(image);
+}
+
 function render(preservePreviews = false) {
   cancelSelectionGesture();
   reportBadge();
@@ -414,6 +451,7 @@ function render(preservePreviews = false) {
   $('empty').hidden = items.length > 0;
   $('empty').querySelector('h3').textContent = state.scanning ? t('正在扫描页面…') : state.items.length ? t('没有符合条件的图片') : t('还没有图片');
   $('empty').querySelector('p').textContent = state.items.length ? t('调整筛选条件，或清除筛选后查看。') : t('滚动页面让懒加载图片出现，再点击右上角重新扫描。');
+  previewObserver.disconnect(); previewLoadingObserver.disconnect(); pendingPreviewImages.clear();
   const fragment = document.createDocumentFragment();
   if (preservePreviews !== true) thresholdCards.clear();
   for (const item of items) {
@@ -447,7 +485,11 @@ function render(preservePreviews = false) {
         if (filters().width || filters().height || filters().minBytes || filters().sort !== 'position') scheduleRender();
       }
     });
-    if (item.previewStatus !== 'error' && !item.previewPending) image.src = item.retryPreview || item.browserData || item.preview || item.url;
+    if (item.previewStatus !== 'error' && !item.previewPending) {
+      const retained = item.retryPreview || item.browserData || item.preview;
+      if (retained || !/^https?:/.test(item.url)) image.src = retained || item.url;
+      else queueRemotePreview(image, item, generation);
+    }
     card.querySelector('.dimensions').textContent = item.width && item.height ? `${Math.round(item.width)} × ${Math.round(item.height)}` : t('尺寸未知');
     card.querySelector('.type-badge').textContent = imageType(item) === 'unknown' ? '?' : imageType(item);
     card.querySelector('.source-badge').textContent = t(sourceLabels[item.sources[0]] || item.sources[0]);
@@ -827,7 +869,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
   const xpathChange = changes[xpathStorageKey(state.domain)];
   const exclusionsChange = changes[exclusionsStorageKey(state.domain)];
   if (state.tab && ((xpathChange && (xpathChange.newValue || '') !== state.xpath) ||
-      (exclusionsChange && (exclusionsChange.newValue || '') !== state.exclusions))) void refresh();
+      (exclusionsChange && (exclusionsChange.newValue || '') !== state.exclusions))) void syncEffective();
   const change = changes[ignoreStorageKey(state.domain)];
   if (change) {
     state.ignored = new Set(Array.isArray(change.newValue) ? change.newValue : []);

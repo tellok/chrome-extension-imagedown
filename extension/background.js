@@ -14,6 +14,17 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   saveQuery(domain, value, explicitEmpty).then(() => respond({ ok: true }), error => respond({ ok: false, error: error.message }));
   return true;
 });
+import { TITLE_CLEANUP_KEY, READY_FIRST_KEY, DOWNLOAD_MANIFEST_KEY } from './settings.js';
+chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  if (message?.type !== 'save-shared-setting' || sender.id !== chrome.runtime.id || sender.url?.split('?')[0] !== chrome.runtime.getURL('settings.html')) return;
+  const { key, value } = message;
+  if (![TITLE_CLEANUP_KEY, READY_FIRST_KEY, DOWNLOAD_MANIFEST_KEY].includes(key) || typeof value !== 'boolean') {
+    respond({ ok: false, error: 'Invalid shared setting' }); return;
+  }
+  withConfigLock(() => chrome.storage.local.set({ [key]: value }))
+    .then(() => respond({ ok: true }), error => respond({ ok: false, error: error.message }));
+  return true;
+});
 import { registerSettingsSync } from './settings-sync-background.js';
 registerSettingsSync();
 import { registerRemoteRules } from './remote-rules-background.js';

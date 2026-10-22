@@ -80,3 +80,7 @@ README 在选择说明中补一条原页红框与取消规则；开发文档记�
 - OpenSpec: required；两份 ADDED 增量不删改既有 Requirement/Scenario，不改旧归档。
 - External-Skill: exempt。`skills/` 无消费方入口；`.agents/skills/openspec-*` 仅维护工作流，无误置内容；Manifest 和 package.py 仅分发扩展，无公开 Skill 契约变化。
 - README-Glossary: verified。四份已读主规格、相关归档、README 均未定义本功能私域概念；元素、覆盖层、会话、序号及租期使用通义，不新增术语条目。交付复核文档链接及用词。
+
+## 后续验收补充（2026-10-22）
+
+默认分支继承本 change 后，用户批准 fix-baseline-regressions 按规格修复释放与结构更新问题；客户端选择通知使用微任务以避免隐藏图库暂停动画帧。原16项用例保留，HB03/HB05/HB06的前置条件与完整地址判定按该修复的 test-review.md、approval.md 单独获批。External-Skill: exempt；README-Glossary: verified：当前主规格和README的增强模式既有映射保持，本次不新增私域术语；初始“空术语表”描述是历史基线，不能覆盖后来主规格。

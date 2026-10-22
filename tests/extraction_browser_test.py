@@ -110,21 +110,27 @@ def test_EB01(p):
         assert all(item.get('browserMethod')=='mhtml-resource' for item in s.scan())
 
 def test_EB02(p):
+    start=len(LOG)
     with session(p,'/links',archive=False) as s:
-        start=len(LOG); result=s.read('page-ref.gif')
+        result=s.read('page-ref.gif')
         assert result['method']=='page-referer-fetch' and bytes(result['bytes'])==GIF
         rows=[row for row in LOG[start:] if row[0].startswith('/page-ref.gif')]
         assert [row[1] for row in rows]==[None,ORIGIN+'/'],rows
         assert all(row[0]=='/page-ref.gif?signature=a%2Bb' for row in rows)
 
 def test_EB03(p):
+    start=len(LOG)
     with session(p,'/links',archive=False) as s:
-        start=len(LOG); result=s.read('image-ref.gif')
+        result=s.read('image-ref.gif')
         assert result['method']=='image-referer-fetch' and bytes(result['bytes'])==GIF
         assert [row[1] for row in LOG[start:] if row[0]=='/image-ref.gif']==[None,ORIGIN+'/',IMAGE_ORIGIN+'/']
 
 def test_EB04(p):
-    with session(p,'/links',archive=False) as s:
+    with session(p,'/empty',archive=False) as s:
+        s.worker.evaluate("chrome.storage.local.set({'image-query:v1:127.0.0.1':'page-ref.gif','image-query:v1:localhost':'page-ref.gif'})")
+        s.source.goto(ORIGIN+'/links')
+        s.panel.reload()
+        expect(s.panel.locator('.page-context')).to_have_attribute('data-frames','1')
         other=s.context.new_page(); other.goto(IMAGE_ORIGIN+'/links');tab=s.worker.evaluate('async url=>(await chrome.tabs.query({})).find(t=>t.url===url).id',other.url)
         second=s.context.new_page();second.goto(f'chrome-extension://{s.extension_id}/panel.html?tab={tab}');expect(second.locator('.page-context')).to_have_attribute('data-frames','1')
         s.panel.evaluate('''async id=>{const api=await import('./api.js');window.shared=(await api.scanTab(id)).items.find(i=>i.url.endsWith('/127.0.0.1.json'))}''',s.tab)

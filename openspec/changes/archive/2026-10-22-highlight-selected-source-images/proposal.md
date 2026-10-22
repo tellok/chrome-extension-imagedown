@@ -34,3 +34,7 @@
 - 阅读、历史约束、完整测试盘点与当前浏览器验证阻塞见 design；不改旧归档。
 - External-Skill: exempt。检索 `skills/`、`.agents/skills/`、README、Manifest、打包脚本：没有消费方 Skill 或对应分发机制，内部 OpenSpec skills 属维护流程，无误置对外 Skill；ZIP 仅分发 extension。本次不新增消费方自动化接口。
 - README-Glossary: verified。核对图库、采集、平台、徽标主规格及相关归档和 README，选择、高亮、覆盖层、会话均使用行业通义，没有项目私域术语新增或映射变化；README 只补充使用行为，保留现有空术语表。
+
+## 后续验收补充（2026-10-22）
+
+默认分支继承本 change 后，用户批准 fix-baseline-regressions 按规格修复释放与结构更新问题；客户端选择通知使用微任务以避免隐藏图库暂停动画帧。原16项用例保留，HB03/HB05/HB06的前置条件与完整地址判定按该修复的 test-review.md、approval.md 单独获批。External-Skill: exempt；README-Glossary: verified：当前主规格和README的增强模式既有映射保持，本次不新增私域术语；初始“空术语表”描述是历史基线，不能覆盖后来主规格。

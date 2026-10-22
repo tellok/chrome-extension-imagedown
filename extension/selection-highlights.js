@@ -1,12 +1,12 @@
 // Keep the latest complete selection, including cards hidden by filters.
 export function createSelectionHighlights() {
-  let port, frame = 0, renewal, retry, closed = false, sequence = 0, fingerprint = '', latest = null;
+  let port, scheduled = false, renewal, retry, closed = false, sequence = 0, fingerprint = '', latest = null;
   function disconnect() {
     const previous = port; port = null; fingerprint = '';
     try { previous?.disconnect(); } catch { /* The extension context may have ended. */ }
   }
   function send() {
-    frame = 0;
+    scheduled = false;
     if (closed || !latest) return;
     const next = JSON.stringify(latest);
     if (next === fingerprint) return;
@@ -28,7 +28,12 @@ export function createSelectionHighlights() {
       fingerprint = next;
     } catch { disconnect(); if (!closed) retry = setTimeout(schedule, 500); }
   }
-  function schedule() { if (!closed && !frame) frame = requestAnimationFrame(send); }
+  function schedule() {
+    if (closed || scheduled) return;
+    scheduled = true;
+    // Selection changes must reach the worker even when this view is hidden.
+    queueMicrotask(send);
+  }
   function renew() {
     if (closed || !port || !latest?.origins.length) return;
     try { port.postMessage({ operation: 'renew', sequence }); } catch { disconnect(); schedule(); }
@@ -42,7 +47,7 @@ export function createSelectionHighlights() {
     if (!origins.length) { clearInterval(renewal); renewal = null; }
     latest = { tabId, origins }; schedule();
   }
-  function clear() { latest = null; cancelAnimationFrame(frame); frame = 0; clearInterval(renewal); renewal = null; clearTimeout(retry); disconnect(); }
+  function clear() { latest = null; scheduled = false; clearInterval(renewal); renewal = null; clearTimeout(retry); disconnect(); }
   function dispose() { closed = true; clear(); clearInterval(renewal); clearTimeout(retry); }
   return { update, clear, dispose };
 }

@@ -25,3 +25,9 @@ export function cleanTitle(title) {
     .replace(/(?<![\p{L}\p{N}])[:;=][-^']?[)DPp]/gu, '')
     .replace(/\s+/gu, ' ').trim();
 }
+
+// The worker owns writes so reloading the settings view cannot cancel them.
+export async function saveSharedSetting(key, value) {
+  const response = await chrome.runtime.sendMessage({ type: 'save-shared-setting', key, value });
+  if (!response?.ok) throw new Error(response?.error || 'Cannot save setting');
+}
