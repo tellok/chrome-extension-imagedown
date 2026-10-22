@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { imageBadge } from '../extension/badge.js';
 
-test('badge formats only ready items in the canonical filtered snapshot', () => {
+test('Badge formats only ready items in the canonical filtered snapshot.', () => {
   const badge = imageBadge([
     { previewStatus: 'ready' }, { previewStatus: 'error' }, {},
     { previewStatus: 'ready', previewPending: true },
@@ -15,7 +15,7 @@ test('badge formats only ready items in the canonical filtered snapshot', () => 
   assert.equal(imageBadge([{ previewStatus: 'ready' }], 1, true).text, '1');
 });
 
-test('large badges stay legible while the tooltip retains the exact count', () => {
+test('Large badges stay legible while the tooltip retains the exact count.', () => {
   const badge = imageBadge(Array.from({ length: 1234 }, () => ({ previewStatus: 'ready' })), 2000);
   assert.equal(badge.text, '999+');
   assert.match(badge.title, /成功加载 1234 张/);

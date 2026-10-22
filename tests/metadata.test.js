@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { filterImages } from '../extension/lib.js';
 import { DEFAULT_THRESHOLDS, normalizeThreshold, siteDomain, dataURLBytes, imageSize, formatBytes, imageMetadataHash } from '../extension/metadata.js';
 
-test('default thresholds include exact boundaries and preserve unknown metadata', () => {
+test('Default thresholds include exact boundaries and preserve unknown metadata.', () => {
   const base = { url: 'https://cdn.test/a.png', alt: '', width: 50, height: 50, bytes: 2048, order: 0 };
   const items = [base, { ...base, width: 49 }, { ...base, height: 49 }, { ...base, bytes: 2047 }, { ...base, width: 0, height: 0, bytes: null }];
   const defaults = { ...DEFAULT_THRESHOLDS, query: '', sort: 'position' };
@@ -16,7 +16,7 @@ test('default thresholds include exact boundaries and preserve unknown metadata'
   assert.equal(normalizeThreshold('0', 50), 0);
 });
 
-test('size counts bytes after Base64 or percent decoding and marks heuristic estimates', () => {
+test('Size counts bytes after Base64 or percent decoding and marks heuristic estimates.', () => {
   assert.equal(dataURLBytes('data:image/png;base64,AP8B'), 3);
   assert.equal(dataURLBytes('data:image/png;base64,AP8%3D'), 2);
   assert.equal(dataURLBytes('data:image/png;base64,AP8'), 2);
@@ -32,14 +32,14 @@ test('size counts bytes after Base64 or percent decoding and marks heuristic est
   assert.equal(formatBytes(null), '体积未知');
 });
 
-test('website scope ignores page paths, protocols and ports but separates hostnames', () => {
+test('Website scope ignores page paths, protocols and ports but separates hostnames.', () => {
   assert.equal(siteDomain('https://EXAMPLE.com/a'), 'example.com');
   assert.equal(siteDomain('http://example.com:8080/b?q=1'), 'example.com');
   assert.notEqual(siteDomain('https://www.example.com/a'), siteDomain('https://example.com/a'));
   assert.equal(siteDomain('chrome://extensions/'), '');
 });
 
-test('ignore fingerprints normalize embedded encodings and remain stable as metadata improves', async () => {
+test('Ignore fingerprints normalize embedded encodings and remain stable as metadata improves.', async () => {
   const a = await imageMetadataHash({ url: 'data:image/png;base64,AP8=' });
   assert.match(a, /^[a-f0-9]{64}$/);
   assert.equal(a, await imageMetadataHash({ url: 'data:image/png;base64,AP8' }));

@@ -141,7 +141,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(THRESHOLD_IMAGES.get(path, SMALL if path in ('/small.png', '/pseudo.png') else PNG))
 
 
-def test_threshold_override_controls(context, worker, extension_id, origin):
+def test_threshold_controls_distinguish_inherited_values_from_overrides_and_reset_each_dimension_independently(context, worker, extension_id, origin):
     saved = worker.evaluate('async () => await chrome.storage.local.get(null)')
     prefixes = ('filters:', 'image-query:', 'xpath:', 'excluded-selectors:', 'ignored:')
     keys = [key for key in saved if key.startswith(prefixes)]
@@ -243,7 +243,7 @@ def test_threshold_override_controls(context, worker, extension_id, origin):
         worker.evaluate('keys=>chrome.storage.local.remove(keys)', [key for key in ('settings:language','settings:theme') if key not in saved])
 
 
-def test_site_threshold_settings(context, worker, extension_id, origin):
+def test_global_threshold_settings_update_inherited_site_values_while_preserving_overrides_and_gallery_state(context, worker, extension_id, origin):
     saved = worker.evaluate('async () => await chrome.storage.local.get(null)')
     keys = [key for key in saved if key.startswith(('filters:', 'image-query:', 'xpath:', 'excluded-selectors:', 'ignored:'))]
     worker.evaluate('keys => chrome.storage.local.remove(keys)', keys)
@@ -326,7 +326,7 @@ def test_site_threshold_settings(context, worker, extension_id, origin):
         worker.evaluate('values=>chrome.storage.local.set(values)', {key:saved[key] for key in keys})
 
 
-def test_settings(context, worker, extension_id, origin):
+def test_shared_settings_persist_across_reloads_and_update_galleries_without_overwriting_edited_titles(context, worker, extension_id, origin):
     source = context.new_page()
     source.goto(origin + '/frame')
     original = '📷 旅行相册 (≧▽≦)（上海）'
@@ -372,7 +372,7 @@ def test_settings(context, worker, extension_id, origin):
     source.close()
 
 
-def test_preview_retries(context, worker, extension_id, origin, output):
+def test_preview_retries_recover_eligible_failures_while_preserving_signed_urls_filters_and_download_state(context, worker, extension_id, origin, output):
     source = context.new_page()
     source.goto(origin + '/retry-fixture')
     source.wait_for_load_state('networkidle')
@@ -520,7 +520,7 @@ def test_preview_retries(context, worker, extension_id, origin, output):
     source.close()
 
 
-def test_site_scopes(context, worker, extension_id, origin, output):
+def test_site_scopes_persist_xpath_and_css_exclusions_and_isolate_them_by_hostname(context, worker, extension_id, origin, output):
     source = context.new_page()
     source.goto(origin + '/fixture')
     source.evaluate('window.ready')
@@ -607,7 +607,7 @@ def test_site_scopes(context, worker, extension_id, origin, output):
     source.close()
 
 
-def test_query_cache(context, worker, extension_id, source, tab_id, origin):
+def test_image_queries_persist_across_reloads_and_navigation_while_remaining_isolated_by_hostname(context, worker, extension_id, source, tab_id, origin):
     keys = ['image-query:v1:127.0.0.1', 'image-query:v1:localhost']
     worker.evaluate('keys => chrome.storage.local.remove(keys)', keys)
     original_url = source.url
@@ -657,7 +657,7 @@ def test_query_cache(context, worker, extension_id, source, tab_id, origin):
     source.evaluate('window.ready')
 
 
-def test_notion_layout(panel, output):
+def test_gallery_layouts_keep_context_controls_and_rule_summaries_usable_at_narrow_widths(panel, output):
     panel.bring_to_front()
     panel.locator('#query').fill('')
     expect(panel.locator('.card')).not_to_have_count(0)
@@ -697,7 +697,7 @@ def test_notion_layout(panel, output):
     expect(panel.locator('.card')).not_to_have_count(0)
 
 
-def test_title_editor(panel):
+def test_title_editing_supports_saving_and_cancellation_while_retaining_long_titles(panel):
     original = panel.locator('#page-title').inner_text()
     panel.locator('#title-display svg').click()
     expect(panel.locator('#title-input')).to_have_value(original)
@@ -740,7 +740,7 @@ def test_title_editor(panel):
     expect(panel.locator('#page-title')).to_have_text(original)
 
 
-def test_default_hash_duplicates(panel):
+def test_default_downloads_reuse_identical_content_and_preserve_files_with_different_content(panel):
     def save(data):
         return panel.evaluate('''async bytes => {
           const {saveBrowserDownload} = await import('./browser-downloads.js');
@@ -771,7 +771,7 @@ def test_default_hash_duplicates(panel):
     assert len(list(original.parent.iterdir())) == 2
 
 
-def test_download_locations(panel):
+def test_download_destinations_persist_and_handle_permissions_cancellation_and_filename_collisions(panel):
     # Only the OS picker is substituted; handles, IndexedDB and file writes are real.
     panel.evaluate('''() => {
       window.showDirectoryPicker = async () => (await navigator.storage.getDirectory()).getDirectoryHandle('chosen-disk', {create:true});
@@ -840,7 +840,7 @@ def test_download_locations(panel):
     panel.locator('#select-all').check()
 
 
-def test_gallery_selection(panel):
+def test_gallery_selection_supports_clicks_drag_toggling_cancellation_and_scrolling_while_excluding_failed_previews(panel):
     cards = panel.locator('.card')
     first = cards.nth(0)
     first.locator('img').click()
@@ -1109,8 +1109,8 @@ def main():
             panel.get_by_role('button', name='重新扫描页面', exact=True).click()
             expect(panel.locator('.page-context')).to_have_attribute('data-frames', '2')
             panel.wait_for_load_state('networkidle')
-            test_title_editor(panel)
-            test_gallery_selection(panel)
+            test_title_editing_supports_saving_and_cancellation_while_retaining_long_titles(panel)
+            test_gallery_selection_supports_clicks_drag_toggling_cancellation_and_scrolling_while_excluding_failed_previews(panel)
             # Playwright normally renames downloads to UUIDs. Use Chrome's native
             # filenames here so the actual title subdirectory can be verified.
             context.new_cdp_session(panel).send('Browser.setDownloadBehavior', {
@@ -1146,11 +1146,11 @@ def main():
                     assert file.read_bytes() == PNG, 'saved cached image must retain original bytes'
             panel.locator('#select-all').uncheck()
             panel.locator('#format').select_option('original')
-            test_default_hash_duplicates(panel)
+            test_default_downloads_reuse_identical_content_and_preserve_files_with_different_content(panel)
             panel.locator('#query').fill('cached.png')
             expect(panel.locator('.card')).to_have_count(1)
             panel.locator('#select-all').check()
-            test_download_locations(panel)
+            test_download_destinations_persist_and_handle_permissions_cancellation_and_filename_collisions(panel)
             panel.locator('#query').fill('missing.png')
             expect(panel.locator('.card')).to_have_count(1)
             expect(panel.locator('.image-url')).to_contain_text('missing.png')
@@ -1271,13 +1271,13 @@ def main():
             panel.screenshot(path=str(OUTPUT / 'filters-and-ignore.png'))
             assert panel.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'filter panel overflows'
             assert not errors, errors
-            test_preview_retries(context, worker, extension_id, origin, OUTPUT)
-            test_site_scopes(context, worker, extension_id, origin, OUTPUT)
-            test_notion_layout(panel, OUTPUT)
-            test_query_cache(context, worker, extension_id, source, tab_id, origin)
-            test_settings(context, worker, extension_id, origin)
-            test_site_threshold_settings(context, worker, extension_id, origin)
-            test_threshold_override_controls(context, worker, extension_id, origin)
+            test_preview_retries_recover_eligible_failures_while_preserving_signed_urls_filters_and_download_state(context, worker, extension_id, origin, OUTPUT)
+            test_site_scopes_persist_xpath_and_css_exclusions_and_isolate_them_by_hostname(context, worker, extension_id, origin, OUTPUT)
+            test_gallery_layouts_keep_context_controls_and_rule_summaries_usable_at_narrow_widths(panel, OUTPUT)
+            test_image_queries_persist_across_reloads_and_navigation_while_remaining_isolated_by_hostname(context, worker, extension_id, source, tab_id, origin)
+            test_shared_settings_persist_across_reloads_and_update_galleries_without_overwriting_edited_titles(context, worker, extension_id, origin)
+            test_global_threshold_settings_update_inherited_site_values_while_preserving_overrides_and_gallery_state(context, worker, extension_id, origin)
+            test_threshold_controls_distinguish_inherited_values_from_overrides_and_reset_each_dimension_independently(context, worker, extension_id, origin)
             assert not errors, errors
 
             # A navigated frame must never service an obsolete read by recycled frame ID.

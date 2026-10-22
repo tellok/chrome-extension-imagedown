@@ -23,6 +23,8 @@ ZIP 根目录包含 `manifest.json`，先执行完整检查和构建，再仅打
 
 ## 浏览器集成测试
 
+测试标题统一用英文陈述句描述预期行为，Python函数使用对应的 `test_` 命名。历史编号仅用于旧规格追踪与定向筛选兼容，完整新旧名称见[测试名称对照表](test-naming-review.md)。既有 `EXTRACTION_TEST`、`SYNC_TEST`、`REMOTE_TEST` 的编号及旧名称筛选方式保持原样，运行报告展示语义化标题。
+
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install -r tests/requirements.txt

@@ -102,14 +102,14 @@ def settings(s):
     with s.context.expect_page() as opened: s.panel.locator('#enhanced-settings-link').click()
     page=opened.value;expect(page.locator('#enhanced-mode')).to_be_enabled();return page
 
-def test_EB01(p):
+def test_archived_images_preserve_original_animation_bytes_without_attaching_a_debugger(p):
     with session(p) as s:
         result=s.read('keep.gif'); assert result['method']=='mhtml-resource' and bytes(result['bytes'])==GIF
         assert Image.open(io.BytesIO(bytes(result['bytes']))).n_frames==2
         assert s.worker.evaluate('attachCount')==0
         assert all(item.get('browserMethod')=='mhtml-resource' for item in s.scan())
 
-def test_EB02(p):
+def test_image_reads_fall_back_to_the_page_referer_without_duplicate_requests_or_signed_url_changes(p):
     start=len(LOG)
     with session(p,'/links',archive=False) as s:
         result=s.read('page-ref.gif')
@@ -118,14 +118,14 @@ def test_EB02(p):
         assert [row[1] for row in rows]==[None,ORIGIN+'/'],rows
         assert all(row[0]=='/page-ref.gif?signature=a%2Bb' for row in rows)
 
-def test_EB03(p):
+def test_image_reads_fall_back_to_the_image_referer_after_earlier_attempts_fail(p):
     start=len(LOG)
     with session(p,'/links',archive=False) as s:
         result=s.read('image-ref.gif')
         assert result['method']=='image-referer-fetch' and bytes(result['bytes'])==GIF
         assert [row[1] for row in LOG[start:] if row[0]=='/image-ref.gif']==[None,ORIGIN+'/',IMAGE_ORIGIN+'/']
 
-def test_EB04(p):
+def test_concurrent_image_reads_keep_referer_fallbacks_isolated_from_rule_subscriptions(p):
     with session(p,'/empty',archive=False) as s:
         s.worker.evaluate("chrome.storage.local.set({'image-query:v1:127.0.0.1':'page-ref.gif','image-query:v1:localhost':'page-ref.gif'})")
         s.source.goto(ORIGIN+'/links')
@@ -146,7 +146,7 @@ def test_EB04(p):
         assert sorted(row[1] or '' for row in rows)==sorted(['',ORIGIN+'/', '',IMAGE_ORIGIN+'/', '']),rows
         assert s.worker.evaluate('chrome.declarativeNetRequest.getSessionRules()')==[]
 
-def test_EB05(p):
+def test_worker_restart_removes_stale_extraction_rules_while_preserving_unrelated_session_rules(p):
     with session(p,'/links',archive=False) as s:
         s.worker.evaluate('''chrome.declarativeNetRequest.updateSessionRules({addRules:[710000,20].map(id=>({id,priority:1,action:{type:'block'},condition:{urlFilter:'never-match-extraction-fixture'}}))})''')
         cdp=s.context.new_cdp_session(s.source);cdp.send('ServiceWorker.enable');cdp.send('ServiceWorker.stopAllWorkers')
@@ -154,7 +154,7 @@ def test_EB05(p):
         assert s.read('page-ref.gif')['method']=='page-referer-fetch'
         ids=s.panel.evaluate('async()=>(await chrome.declarativeNetRequest.getSessionRules()).map(r=>r.id)');assert ids==[20],ids
 
-def test_EB06(p):
+def test_multiple_galleries_share_archive_capture_and_receive_newly_discovered_images(p):
     with session(p) as s:
         before=s.panel.evaluate('captureCount')
         second=s.context.new_page();second.goto(f'chrome-extension://{s.extension_id}/panel.html?tab={s.tab}');expect(second.locator('.page-context')).to_have_attribute('data-frames','1')
@@ -165,7 +165,7 @@ def test_EB06(p):
         assert s.panel.evaluate('captureCount')+second.evaluate('captureCount')<=before+2
         assert s.worker.evaluate('attachCount')==0
 
-def test_EB07(p):
+def test_images_become_available_from_archives_after_loading_while_navigation_discards_stale_capture_results(p):
     SLOW.clear()
     try:
         with session(p,'/slow-page',wait='domcontentloaded') as s:
@@ -177,7 +177,7 @@ def test_EB07(p):
             s.source.goto(ORIGIN+'/empty');value=s.panel.evaluate('late');assert not any(item.get('browserData') for item in value) if isinstance(value,list) else 'error' in value
     finally:SLOW.set()
 
-def test_EB08(p):
+def test_archive_resources_require_an_unambiguous_document_match_and_are_not_assigned_to_unverified_css_images(p):
     with session(p,'/frames') as s:
         items=s.scan();same=next(item for item in items if item['url'].endswith('/same.gif'))
         assert len(same['origins'])==2 and same.get('browserMethod')!='mhtml-resource'
@@ -186,7 +186,7 @@ def test_EB08(p):
         s.source.wait_for_load_state('networkidle');s.source.evaluate('performance.clearResourceTimings()')
         css=next(item for item in s.scan() if item['url'].endswith('/css.gif'));assert not css.get('browserData')
 
-def test_EB09(p):
+def test_enhanced_mode_settings_focus_the_whole_section_and_persist_permission_for_the_source_hostname(p):
     with session(p,'/empty') as s:
         expect(s.panel.locator('#enhanced-settings-link')).to_be_visible()
         page=settings(s);group=page.locator('#enhanced-settings');toggle=page.locator('#enhanced-mode')
@@ -216,7 +216,7 @@ def test_EB09(p):
         page.reload();expect(page.locator('#enhanced-mode')).to_be_checked()
         s.panel.locator('#enhanced-disable').click();expect(page.locator('#enhanced-mode')).not_to_be_checked()
 
-def test_EB10(p):
+def test_enhanced_mode_settings_report_storage_failures_and_reject_invalid_source_contexts(p):
     with session(p,'/empty') as s:
         page=settings(s)
         page.evaluate("() => { chrome.storage.local.set=()=>Promise.reject(Error('controlled storage failure')); }")
@@ -234,7 +234,7 @@ def test_EB10(p):
         expect(fresh.locator('#enhanced-settings')).to_have_css('outline-style','none')
         assert s.worker.evaluate("chrome.storage.local.get('enhanced-mode:v1:localhost')")=={}
 
-def test_EB11(p):
+def test_enabling_enhanced_mode_adds_missing_images_while_preserving_titles_selections_and_scope_rules(p):
     with session(p) as s:
         s.source.evaluate("document.querySelector('#hidden').remove();performance.clearResourceTimings()")
         s.panel.locator('#refresh').click();expect(s.panel.locator('.card')).to_have_count(1)
@@ -246,7 +246,7 @@ def test_EB11(p):
         hidden=s.panel.locator('.card').filter(has=s.panel.locator('.image-url',has_text='hidden.gif'));hidden.locator('.ignore-image').click();expect(hidden).to_have_count(0)
         s.source.evaluate("document.querySelector('#keep').alt='changed'");expect(hidden).to_have_count(0)
 
-def test_EB12(p):
+def test_disabling_enhanced_mode_or_navigating_discards_late_debugger_results_and_releases_owned_sessions(p):
     with session(p) as s:
         enable(s);s.panel.wait_for_timeout(300)
         item=s.scan()[0]
@@ -264,7 +264,7 @@ def test_EB12(p):
         assert s.panel.evaluate('navigationRead')['items']==[]
         expect(s.panel.locator('#enhanced-badge')).to_be_hidden()
 
-def test_EB13(p):
+def test_user_debugger_cancellation_blocks_automatic_reattachment_until_an_authorized_explicit_retry(p):
     with session(p,detach_fixture=True) as s:
         enable(s);s.panel.wait_for_timeout(300);item=s.scan()[0]
         s.worker.evaluate('''()=>{const send=chrome.debugger.sendCommand;globalThis.originalSend=send;chrome.debugger.sendCommand=async(...args)=>{if(args[1]==='Page.getResourceContent'){globalThis.holding=true;await new Promise(r=>globalThis.resumeCDP=r)}return send(...args)}}''')
@@ -283,7 +283,7 @@ def test_EB13(p):
         assert len(retried['items'])==1 and retried['items'][0]['method']=='debugger-resource'
 
 
-def test_EB14(p):
+def test_enhanced_mode_controls_remain_accessible_across_languages_themes_and_narrow_layouts(p):
     with session(p,'/empty') as s:
         page=settings(s);page.locator('#enhanced-mode').check();expect(s.panel.locator('#enhanced-badge')).to_be_visible()
         for language in ['ja','de','en','zh-CN','zh-TW','ko','fr']:
@@ -305,7 +305,7 @@ def test_EB14(p):
                 page.locator('#enhanced-settings').screenshot(path=str(OUTPUT/f'settings-{language}-{theme}.png'))
         assert not s.errors,s.errors
 
-def test_EB15(p):
+def test_passive_badges_avoid_image_extraction_while_active_galleries_continue_receiving_incremental_updates(p):
     with session(p,'/empty') as s:
         s.panel.close();before=s.worker.evaluate('({fetch:fetchCount,attach:attachCount,capture:archiveCompleted})')
         s.source.evaluate("document.body.insertAdjacentHTML('beforeend','<img src=\"/passive.gif\">')")
@@ -316,6 +316,26 @@ def test_EB15(p):
         first.close();s.source.evaluate("document.body.insertAdjacentHTML('beforeend','<img src=\"/passive2.gif\">')");expect(second.locator('.card')).to_have_count(2,timeout=15000)
         assert not s.errors,s.errors
 
+
+# Keep historical selectors while reporting semantic test names.
+TEST_CASES = [
+    ('EB01', test_archived_images_preserve_original_animation_bytes_without_attaching_a_debugger, 'Archived images preserve original animation bytes without attaching a debugger.'),
+    ('EB02', test_image_reads_fall_back_to_the_page_referer_without_duplicate_requests_or_signed_url_changes, 'Image reads fall back to the page referer without duplicate requests or signed URL changes.'),
+    ('EB03', test_image_reads_fall_back_to_the_image_referer_after_earlier_attempts_fail, 'Image reads fall back to the image referer after earlier attempts fail.'),
+    ('EB04', test_concurrent_image_reads_keep_referer_fallbacks_isolated_from_rule_subscriptions, 'Concurrent image reads keep referer fallbacks isolated from rule subscriptions.'),
+    ('EB05', test_worker_restart_removes_stale_extraction_rules_while_preserving_unrelated_session_rules, 'Worker restart removes stale extraction rules while preserving unrelated session rules.'),
+    ('EB06', test_multiple_galleries_share_archive_capture_and_receive_newly_discovered_images, 'Multiple galleries share archive capture and receive newly discovered images.'),
+    ('EB07', test_images_become_available_from_archives_after_loading_while_navigation_discards_stale_capture_results, 'Images become available from archives after loading while navigation discards stale capture results.'),
+    ('EB08', test_archive_resources_require_an_unambiguous_document_match_and_are_not_assigned_to_unverified_css_images, 'Archive resources require an unambiguous document match and are not assigned to unverified CSS images.'),
+    ('EB09', test_enhanced_mode_settings_focus_the_whole_section_and_persist_permission_for_the_source_hostname, 'Enhanced mode settings focus the whole section and persist permission for the source hostname.'),
+    ('EB10', test_enhanced_mode_settings_report_storage_failures_and_reject_invalid_source_contexts, 'Enhanced mode settings report storage failures and reject invalid source contexts.'),
+    ('EB11', test_enabling_enhanced_mode_adds_missing_images_while_preserving_titles_selections_and_scope_rules, 'Enabling enhanced mode adds missing images while preserving titles, selections, and scope rules.'),
+    ('EB12', test_disabling_enhanced_mode_or_navigating_discards_late_debugger_results_and_releases_owned_sessions, 'Disabling enhanced mode or navigating discards late debugger results and releases owned sessions.'),
+    ('EB13', test_user_debugger_cancellation_blocks_automatic_reattachment_until_an_authorized_explicit_retry, 'User debugger cancellation blocks automatic reattachment until an authorized explicit retry.'),
+    ('EB14', test_enhanced_mode_controls_remain_accessible_across_languages_themes_and_narrow_layouts, 'Enhanced mode controls remain accessible across languages, themes, and narrow layouts.'),
+    ('EB15', test_passive_badges_avoid_image_extraction_while_active_galleries_continue_receiving_incremental_updates, 'Passive badges avoid image extraction while active galleries continue receiving incremental updates.'),
+]
+
 def main():
     global ORIGIN,IMAGE_ORIGIN
     servers=[ThreadingHTTPServer(('127.0.0.1',0),Handler) for _ in range(2)]
@@ -323,9 +343,9 @@ def main():
     for server in servers:Thread(target=server.serve_forever,daemon=True).start()
     try:
         with sync_playwright() as p:
-            for case in [test_EB01,test_EB02,test_EB03,test_EB04,test_EB05,test_EB06,test_EB07,test_EB08,test_EB09,test_EB10,test_EB11,test_EB12,test_EB13,test_EB14,test_EB15]:
-                if os.environ.get('EXTRACTION_TEST') and os.environ['EXTRACTION_TEST']!=case.__name__[5:]:continue
-                case(p);print(case.__name__+' PASS',flush=True)
+            for case_id, case, title in TEST_CASES:
+                if os.environ.get('EXTRACTION_TEST') and os.environ['EXTRACTION_TEST']!=case_id:continue
+                case(p);print('PASS '+title,flush=True)
     finally:
         SLOW.set()
         for server in servers:server.shutdown()

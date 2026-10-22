@@ -148,7 +148,7 @@ def session(playwright, origin, enabled=False, path='/simple'):
             context.close()
 
 
-def test_manifest_off_preserves_existing_downloads(p, origin):
+def test_disabling_manifests_preserves_image_downloads_without_additional_image_requests(p, origin):
     with session(p, origin) as s:
         settings = s.settings()
         expect(settings.locator('#download-manifest')).not_to_be_checked()
@@ -163,7 +163,7 @@ def test_manifest_off_preserves_existing_downloads(p, origin):
         assert not s.manifests()
 
 
-def test_manifest_setting_persistence_and_sync(p, origin):
+def test_manifest_settings_persist_across_reloads_synchronize_across_views_and_report_storage_failures(p, origin):
     with session(p, origin) as s:
         a, b = s.settings(), s.settings()
         a.locator('#download-manifest').check()
@@ -199,7 +199,7 @@ def test_manifest_setting_persistence_and_sync(p, origin):
         expect(s.panel.locator('.single-download').first).to_be_disabled()
 
 
-def test_default_directory_manifest_uses_actual_paths(p, origin):
+def test_default_directory_manifests_record_the_actual_converted_image_paths(p, origin):
     with session(p, origin, True) as s:
         s.title('旅行/精选')
         s.panel.locator('#format').select_option('jpg')
@@ -215,7 +215,7 @@ def test_default_directory_manifest_uses_actual_paths(p, origin):
         expect(s.panel.locator('#progress')).to_contain_text('新保存 2')
 
 
-def test_custom_directory_manifest_tracks_duplicates(p, origin):
+def test_custom_directory_manifests_distinguish_reused_images_from_files_with_changed_content(p, origin):
     with session(p, origin, True) as s:
         s.custom()
         s.download()
@@ -235,7 +235,7 @@ def test_custom_directory_manifest_tracks_duplicates(p, origin):
         assert not s.manifests()
 
 
-def test_partial_failure_manifest_and_image_counts(p, origin):
+def test_partial_download_failures_remain_visible_in_manifests_and_image_counts(p, origin):
     with session(p, origin, True) as s:
         s.custom()
         s.fail_files('-b.png')
@@ -254,7 +254,7 @@ def test_partial_failure_manifest_and_image_counts(p, origin):
         assert 'Failed images: 1' in misplaced and 'local filename: a.png' not in misplaced
 
 
-def test_all_failed_images_still_create_manifest(p, origin):
+def test_batches_still_produce_a_manifest_when_every_image_download_fails(p, origin):
     with session(p, origin, True) as s:
         s.custom()
         s.fail_files('.png')
@@ -265,7 +265,7 @@ def test_all_failed_images_still_create_manifest(p, origin):
         expect(s.panel.locator('#progress')).to_contain_text('新保存 0 · 失败 2')
 
 
-def test_manifest_failure_preserves_images_and_reports_error(p, origin):
+def test_manifest_write_failures_preserve_downloaded_images_and_display_an_error(p, origin):
     with session(p, origin, True) as s:
         s.custom()
         s.fail_files('.txt')
@@ -283,7 +283,7 @@ def test_manifest_failure_preserves_images_and_reports_error(p, origin):
         assert not s.manifests()
 
 
-def test_collected_metadata_survives_frames_and_navigation(p, origin):
+def test_collected_image_metadata_preserves_frame_origins_and_survives_source_navigation(p, origin):
     with session(p, origin, True, '/meta') as s:
         items = s.panel.evaluate('''async()=>{const {scanTab}=await import('./api.js');const tab=Number(new URLSearchParams(location.search).get('tab'));window.captured=(await scanTab(tab)).items;return window.captured}''')
         a = next(i for i in items if i['url'] == origin+'/a.png')
@@ -307,7 +307,7 @@ def test_collected_metadata_survives_frames_and_navigation(p, origin):
         assert retained['sourcePageUrl'] == origin+'/meta'
 
 
-def test_download_batch_freezes_manifest_preferences(p, origin):
+def test_download_batches_retain_the_manifest_preferences_captured_at_their_start(p, origin):
     with session(p, origin, True) as s:
         s.custom()
         settings = s.settings()
@@ -331,7 +331,7 @@ def test_download_batch_freezes_manifest_preferences(p, origin):
         assert all(not f['name'].endswith('.txt') for f in s.custom_files('Later title'))
 
 
-def test_manifest_collision_preserves_every_batch(p, origin):
+def test_manifest_filename_collisions_preserve_the_output_of_every_download_batch(p, origin):
     with session(p, origin, True) as s:
         s.download()
         first = s.manifests()[0]
@@ -345,6 +345,20 @@ def test_manifest_collision_preserves_every_batch(p, origin):
         assert len(list(s.folder.rglob('*.png'))) == 2
 
 
+
+TEST_TITLES = {
+    'test_disabling_manifests_preserves_image_downloads_without_additional_image_requests': 'Disabling manifests preserves image downloads without additional image requests.',
+    'test_manifest_settings_persist_across_reloads_synchronize_across_views_and_report_storage_failures': 'Manifest settings persist across reloads, synchronize across views, and report storage failures.',
+    'test_default_directory_manifests_record_the_actual_converted_image_paths': 'Default directory manifests record the actual converted image paths.',
+    'test_custom_directory_manifests_distinguish_reused_images_from_files_with_changed_content': 'Custom directory manifests distinguish reused images from files with changed content.',
+    'test_partial_download_failures_remain_visible_in_manifests_and_image_counts': 'Partial download failures remain visible in manifests and image counts.',
+    'test_batches_still_produce_a_manifest_when_every_image_download_fails': 'Batches still produce a manifest when every image download fails.',
+    'test_manifest_write_failures_preserve_downloaded_images_and_display_an_error': 'Manifest write failures preserve downloaded images and display an error.',
+    'test_collected_image_metadata_preserves_frame_origins_and_survives_source_navigation': 'Collected image metadata preserves frame origins and survives source navigation.',
+    'test_download_batches_retain_the_manifest_preferences_captured_at_their_start': 'Download batches retain the manifest preferences captured at their start.',
+    'test_manifest_filename_collisions_preserve_the_output_of_every_download_batch': 'Manifest filename collisions preserve the output of every download batch.',
+}
+
 def main():
     server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     Thread(target=server.serve_forever, daemon=True).start()
@@ -354,7 +368,7 @@ def main():
             for name, case in list(globals().items()):
                 if name.startswith('test_'):
                     case(p, origin)
-                    print(name+': OK', flush=True)
+                    print('PASS '+TEST_TITLES[name], flush=True)
     finally:
         server.shutdown()
 

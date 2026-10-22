@@ -153,7 +153,7 @@ def session(playwright, origin):
             context.close()
 
 
-def test_HB01_click_checkbox_and_keyboard_red_border(p, origin):
+def test_card_clicks_checkboxes_and_keyboard_selection_update_red_source_image_borders(p, origin):
     with session(p, origin) as s:
         card = s.card('/a.png')
         card.locator('img').click()
@@ -165,7 +165,7 @@ def test_HB01_click_checkbox_and_keyboard_red_border(p, origin):
         card.locator('input').focus(); s.panel.keyboard.press('Space'); s.wait_boxes(0)
 
 
-def test_HB02_multiple_select_all_and_deselect(p, origin):
+def test_multiple_selection_and_select_all_update_source_highlights_and_clear_them_after_deselection(p, origin):
     with session(p, origin) as s:
         s.select('/a.png'); s.select('/b.png'); s.wait_boxes(4)
         s.select('/b.png', False); s.wait_boxes(3)
@@ -179,7 +179,7 @@ def test_HB02_multiple_select_all_and_deselect(p, origin):
         assert not state['active'] and not state['host']
 
 
-def test_HB03_drag_toggle_and_escape_restore(p, origin):
+def test_drag_selection_supports_toggling_and_restores_the_previous_selection_on_escape(p, origin):
     with session(p, origin) as s:
         s.panel.locator('#query').fill('.png')
         cards=s.panel.locator('.card'); expect(cards).to_have_count(11)
@@ -202,7 +202,7 @@ def test_HB03_drag_toggle_and_escape_restore(p, origin):
         s.panel.locator('#select-all').check();s.panel.locator('#select-all').uncheck();s.wait_boxes(0)
 
 
-def test_HB04_hidden_selection_and_automatic_deselection(p, origin):
+def test_filtering_preserves_hidden_selections_while_failed_or_ignored_images_lose_their_highlights(p, origin):
     with session(p, origin) as s:
         s.select('/a.png');s.select('/b.png');s.wait_boxes(4)
         s.panel.locator('#query').fill('/b.png')
@@ -215,7 +215,7 @@ def test_HB04_hidden_selection_and_automatic_deselection(p, origin):
         s.card('/a.png').locator('.ignore-image').click();s.wait_boxes(0)
 
 
-def test_HB05_duplicate_urls_and_shared_elements(p, origin):
+def test_identical_image_urls_share_one_candidate_while_distinct_urls_remain_separate(p, origin):
     with session(p, origin) as s:
         before=next(item for item in s.scan() if item['url']==origin+'/a.png')
         s.select('/a.png');s.wait_boxes(3)
@@ -231,7 +231,7 @@ def test_HB05_duplicate_urls_and_shared_elements(p, origin):
         assert before['sourceReference']=='img#alpha'
 
 
-def test_HB06_open_shadow_and_cross_origin_iframe(p, origin):
+def test_selecting_an_image_highlights_its_occurrences_in_open_shadow_roots_and_cross_origin_frames(p, origin):
     with session(p, origin) as s:
         frame_page=s.source.frames[1]
         frame_page.locator('#frame-image').evaluate('(image,url)=>image.src=url',origin+'/a.png')
@@ -251,7 +251,7 @@ def test_HB06_open_shadow_and_cross_origin_iframe(p, origin):
             s.worker.evaluate('()=>{chrome.scripting.executeScript=__originalHighlightExecute}')
 
 
-def test_HB07_picture_and_non_img_source_mapping(p, origin):
+def test_responsive_and_nonimage_sources_highlight_their_actual_carrier_elements(p, origin):
     with session(p, origin) as s:
         for name in ['/responsive.png','/alternate.png','/background.png','/pseudo.png','/poster.png','/linked.png']:
             s.select(name)
@@ -264,7 +264,7 @@ def test_HB07_picture_and_non_img_source_mapping(p, origin):
         s.panel.locator('#select-all').check();s.panel.locator('#select-all').uncheck();s.wait_boxes(0)
 
 
-def test_HB08_geometry_style_and_pointer_preservation(p, origin):
+def test_source_highlights_follow_geometry_changes_without_altering_page_styles_or_intercepting_interaction(p, origin):
     with session(p, origin) as s:
         before=s.source.locator('#alpha').evaluate("e=>({style:e.getAttribute('style'),border:getComputedStyle(e).border,outline:getComputedStyle(e).outline,html:e.parentElement.innerHTML,rect:e.getBoundingClientRect().toJSON(),next:document.querySelector('#bravo').getBoundingClientRect().toJSON()})")
         s.select('/a.png');state=s.wait_boxes(3)
@@ -286,7 +286,7 @@ def test_HB08_geometry_style_and_pointer_preservation(p, origin):
         assert after=={key:before[key] for key in after}
 
 
-def test_HB09_hidden_removed_and_replaced_targets(p, origin):
+def test_hidden_removed_or_replaced_source_elements_no_longer_display_stale_highlights(p, origin):
     with session(p, origin) as s:
         s.select('/a.png');s.wait_boxes(3)
         s.source.locator('#alpha').evaluate("e=>e.style.display='none'");s.wait_boxes(2)
@@ -297,7 +297,7 @@ def test_HB09_hidden_removed_and_replaced_targets(p, origin):
         s.select('/replacement.png');s.wait_boxes(2)
 
 
-def test_HB10_refresh_navigation_and_stale_updates(p, origin):
+def test_refreshes_and_navigation_clear_stale_highlights_while_scope_updates_rebind_retained_selections(p, origin):
     with session(p, origin) as s:
         s.select('/a.png');s.wait_boxes(3)
         old=s.scan()[0]['origins'][0]['documentId']
@@ -313,7 +313,7 @@ def test_HB10_refresh_navigation_and_stale_updates(p, origin):
         expect(s.panel.locator('#excluded-selectors')).to_have_value('#twin');s.wait_boxes(1)
 
 
-def test_HB11_multiple_views_close_and_connection_expiry(p, origin):
+def test_multiple_galleries_retain_independent_highlights_and_release_them_when_views_close_or_sessions_expire(p, origin):
     with session(p, origin) as s:
         s.select('/a.png');s.wait_boxes(3)
         second=s.open_panel();s.select('/a.png',page=second);s.wait_boxes(3)
@@ -332,7 +332,7 @@ def test_HB11_multiple_views_close_and_connection_expiry(p, origin):
             s.worker.evaluate('()=>{chrome.scripting.executeScript=__originalHighlightExecute}')
 
 
-def test_HB12_badge_observer_requests_and_runtime_errors(p, origin):
+def test_source_highlights_avoid_extra_image_requests_and_badge_scans_while_real_page_changes_remain_observable(p, origin):
     with session(p, origin) as s:
         s.source.wait_for_timeout(1200)
         s.script("()=>{globalThis.__highlightProbe={scans:0,pixels:0};const scan=__imageTaken.scan;__imageTaken.scan=(...args)=>{__highlightProbe.scans++;return scan(...args)};const pixels=HTMLCanvasElement.prototype.toDataURL;HTMLCanvasElement.prototype.toDataURL=function(...args){__highlightProbe.pixels++;return pixels.apply(this,args)}}")
@@ -354,6 +354,22 @@ def test_HB12_badge_observer_requests_and_runtime_errors(p, origin):
         s.source.locator('#new-badge-image').evaluate('e=>e.remove()')
 
 
+
+TEST_TITLES = {
+    'test_card_clicks_checkboxes_and_keyboard_selection_update_red_source_image_borders': 'Card clicks, checkboxes, and keyboard selection update red source image borders.',
+    'test_multiple_selection_and_select_all_update_source_highlights_and_clear_them_after_deselection': 'Multiple selection and select all update source highlights and clear them after deselection.',
+    'test_drag_selection_supports_toggling_and_restores_the_previous_selection_on_escape': 'Drag selection supports toggling and restores the previous selection on Escape.',
+    'test_filtering_preserves_hidden_selections_while_failed_or_ignored_images_lose_their_highlights': 'Filtering preserves hidden selections while failed or ignored images lose their highlights.',
+    'test_identical_image_urls_share_one_candidate_while_distinct_urls_remain_separate': 'Identical image URLs share one candidate while distinct URLs remain separate.',
+    'test_selecting_an_image_highlights_its_occurrences_in_open_shadow_roots_and_cross_origin_frames': 'Selecting an image highlights its occurrences in open shadow roots and cross origin frames.',
+    'test_responsive_and_nonimage_sources_highlight_their_actual_carrier_elements': 'Responsive and nonimage sources highlight their actual carrier elements.',
+    'test_source_highlights_follow_geometry_changes_without_altering_page_styles_or_intercepting_interaction': 'Source highlights follow geometry changes without altering page styles or intercepting interaction.',
+    'test_hidden_removed_or_replaced_source_elements_no_longer_display_stale_highlights': 'Hidden, removed, or replaced source elements no longer display stale highlights.',
+    'test_refreshes_and_navigation_clear_stale_highlights_while_scope_updates_rebind_retained_selections': 'Refreshes and navigation clear stale highlights while scope updates rebind retained selections.',
+    'test_multiple_galleries_retain_independent_highlights_and_release_them_when_views_close_or_sessions_expire': 'Multiple galleries retain independent highlights and release them when views close or sessions expire.',
+    'test_source_highlights_avoid_extra_image_requests_and_badge_scans_while_real_page_changes_remain_observable': 'Source highlights avoid extra image requests and badge scans while real page changes remain observable.',
+}
+
 def main():
     servers=[ThreadingHTTPServer(('127.0.0.1',0),Handler) for _ in range(2)]
     for i,server in enumerate(servers):
@@ -362,10 +378,10 @@ def main():
     origin=f'http://127.0.0.1:{servers[0].server_port}'
     try:
         with sync_playwright() as p:
-            cases=[(name,case) for name,case in globals().items() if name.startswith('test_HB')]
+            cases=[(name,case) for name,case in globals().items() if name.startswith('test_')]
             assert len(cases)==12
             for name,case in cases:
-                COUNTS.clear();case(p,origin);print('PASS '+name,flush=True)
+                COUNTS.clear();case(p,origin);print('PASS '+TEST_TITLES[name],flush=True)
             print('12 source highlight browser scenarios passed',flush=True)
     finally:
         for server in servers:
