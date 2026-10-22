@@ -4,8 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "node scripts/build.mjs --check",
+    "check": "npm run build && node scripts/check.mjs",
+    "pretest": "npm run build",
     "test": "node --test tests/*.test.js",
-    "check": "node scripts/check.mjs",
     "package": "python3 scripts/package.py"
+  },
+  "devDependencies": {
+    "@types/chrome": "0.3.6",
+    "typescript": "5.9.3"
   }
 }

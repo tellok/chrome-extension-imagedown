@@ -1,16 +1,25 @@
 # 开发与验证
 
-扩展位于 `extension/`，使用原生 JavaScript 模块，无运行时依赖，不需要构建或执行 `npm install` 才能加载。浏览器最低版本以 Manifest 为准；OpenSpec CLI 的开发环境需要 Node.js 20.19+，现有 CI 使用 Node.js 22。
+扩展 TypeScript 源码位于 `src/`，静态资源与生成的原生 JavaScript 模块位于 `extension/`，无运行时依赖。首次加载源码版须执行 `npm ci` 和 `npm run build`；生成脚本不纳入版本控制，后续修改应编辑 `src/`。浏览器最低版本以 Manifest 为准；OpenSpec CLI 的开发环境需要 Node.js 20.19+，现有 CI 使用 Node.js 22。
 
 ## 常用命令
 
 ```sh
-npm run check       # JavaScript 语法、Manifest 引用资源
-npm test            # Node 单元测试
+npm ci              # 依赖锁文件安装
+npm run typecheck   # 全量严格类型检查和 AST 安全规则
+npm run build       # 清理遗留脚本并编译到 extension/
+npm run check       # 构建、语法和 Manifest/HTML/CSS/模块/注入/线程资源检查
+npm test            # 先构建，再运行既有 Node 单元测试
 npm run package     # dist/imagetaken-<manifest-version>.zip
 ```
 
-ZIP 根目录包含 `manifest.json`，仅打包 `extension/` 文件，不含规格、开发工具和测试资源。更新未打包扩展后，需在 `chrome://extensions` 点击 ImageTaken 的「重新加载」；仅修改磁盘文件不会自动更新已加载的 Manifest。
+ZIP 根目录包含 `manifest.json`，先执行完整检查和构建，再仅打包 `extension/` 的运行资源，不含 TypeScript 源码、声明、源码映射、规格、开发工具和测试资源。更新未打包扩展后，需在 `chrome://extensions` 点击 ImageTaken 的「重新加载」；仅修改磁盘文件不会自动更新已加载的 Manifest。
+
+## TypeScript 构建约定
+
+`tsconfig.json` 对全部扩展源码启用 `strict` 和 `noEmitOnError`，使用 ES2022 原生模块输出，保留 `.js` 导入路径。Chrome API 使用开发期类型声明，共享数据模型位于 `src/models.ts`，浏览器上下文补充声明位于 `src/environment.d.ts`。`scripts/build.mjs` 使用编译器抽象语法树（Abstract Syntax Tree, AST）禁止显式 `any`、类型断言、非空断言和关闭检查注释。外部数据先用 `unknown` 与运行时校验处理。
+
+构建成功后清理旧生成脚本并输出；类型失败不会进入打包。采集器、徽标观察器与原页高亮脚本保持经典脚本形式，避免注入后出现模块闭包依赖。译文目录编译后继续保持可解析的数据导出文本。发布包解压即可加载，无需 Node 或编译器。
 
 ## 浏览器集成测试
 
@@ -64,7 +73,7 @@ npx --yes @fission-ai/openspec@1.14.3 archive <change-name>
 | `panel.html/css/js` | 侧栏和固定源页面的独立图片库 |
 | `selection-highlights.js`、`source-highlights-background.js`、`source-highlights.js` | 选择快照、按文档路由的视图会话及原页临时红框 |
 
-以上模块均位于 `extension/`。底层文件划分是开发索引，不是稳定的产品 API；验收依据以主规范为准。
+以上脚本的可维护源码均位于 `src/`，使用 `.ts` 后缀；表内 `.js` 是编译后运行路径，生成脚本位于 `extension/`。底层文件划分是开发索引，不是稳定的产品 API；验收依据以主规范为准。
 
 ## 选中图片的原页红框
 
